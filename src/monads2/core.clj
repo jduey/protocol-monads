@@ -41,14 +41,18 @@
             `(monads2.core/do-result ~example ~expr) 
             steps)))
 
-(defn seq [mvs]
-  (let [rest-steps (reduce (fn [steps mv]
-                             (fn [acc x]
-                               (bind mv (partial steps (conj acc x)))))
-                           (fn [acc x]
-                             (do-result (first mvs) (conj acc x)))
-                           (reverse (rest mvs)))]
-    (bind (first mvs) (partial rest-steps []))))
+(defn seq
+  ([mvs] (seq (first mvs) mvs))
+  ([m-result mvs]
+     (if (clojure.core/seq mvs)
+       (let [rest-steps (reduce (fn [steps mv]
+                                  (fn [acc x]
+                                    (bind mv (partial steps (conj acc x)))))
+                                (fn [acc x]
+                                  (do-result (first mvs) (conj acc x)))
+                                (reverse (rest mvs)))]
+         (bind (first mvs) (partial rest-steps [])))
+       (m-result []))))
 
 
 (extend-type clojure.lang.PersistentList

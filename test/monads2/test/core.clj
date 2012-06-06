@@ -262,9 +262,11 @@
 
 (deftest test-seq
          (is (= [[3 :a] [3 :b] [5 :a] [5 :b]]
-                (m/seq [[3 5] [:a :b]]))))
+                (m/seq [[3 5] [:a :b]])))
+         (is (= [[]]
+                (m/seq vector []))))
 
-(prn :do ((m/do
+#_(prn :do ((m/do
             [x (m/state 29)
              y (m/state 12)
              :let [z (inc x)]]
