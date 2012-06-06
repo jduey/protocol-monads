@@ -92,6 +92,45 @@
                 (hash-set 5 6))))
 
 
+(def test-writer (m/writer #{}))
+
+(defn writer-f [n]
+  (test-writer (inc n)))
+
+(defn writer-g [n]
+  (test-writer (+ n 5)))
+
+(deftest first-law-writer
+         (is (= (m/writer-value (m/bind (test-writer 10) writer-f)) 
+                (m/writer-value (writer-f 10)))))
+
+(deftest second-law-writer
+         (is (= (m/writer-value (m/bind (test-writer 10) test-writer)) 
+                (m/writer-value (test-writer 10)))))
+
+(deftest third-law-writer
+         (is (= (m/writer-value (m/bind (m/bind (test-writer 3) writer-f) writer-g)) 
+                (m/writer-value (m/bind (test-writer 3)
+                                        (fn [x]
+                                          (m/bind (writer-f x) writer-g)))))))
+
+(deftest test-write
+         (is (= [nil #{:written}]
+                (m/writer-value (m/write test-writer :written)))))
+
+(deftest test-listen
+         (is (= [[nil #{:written}] #{:written}]
+                (->> (m/write test-writer :written)
+                  m/listen
+                  m/writer-value))))
+
+(deftest test-censor
+         (is (= [nil #{:new-written}]
+                (->> (m/write test-writer :written)
+                  (m/censor (constantly #{:new-written})) 
+                  m/writer-value))))
+
+
 (defn state-f [n]
   (m/state (inc n)))
 
