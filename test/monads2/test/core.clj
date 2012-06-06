@@ -101,34 +101,34 @@
   (test-writer (+ n 5)))
 
 (deftest first-law-writer
-         (is (= (m/writer-value (m/bind (test-writer 10) writer-f)) 
-                (m/writer-value (writer-f 10)))))
+         (is (= (deref (m/bind (test-writer 10) writer-f)) 
+                (deref (writer-f 10)))))
 
 (deftest second-law-writer
-         (is (= (m/writer-value (m/bind (test-writer 10) test-writer)) 
-                (m/writer-value (test-writer 10)))))
+         (is (= (deref (m/bind (test-writer 10) test-writer)) 
+                (deref (test-writer 10)))))
 
 (deftest third-law-writer
-         (is (= (m/writer-value (m/bind (m/bind (test-writer 3) writer-f) writer-g)) 
-                (m/writer-value (m/bind (test-writer 3)
+         (is (= (deref (m/bind (m/bind (test-writer 3) writer-f) writer-g)) 
+                (deref (m/bind (test-writer 3)
                                         (fn [x]
                                           (m/bind (writer-f x) writer-g)))))))
 
 (deftest test-write
          (is (= [nil #{:written}]
-                (m/writer-value (m/write test-writer :written)))))
+                (deref (m/write test-writer :written)))))
 
 (deftest test-listen
          (is (= [[nil #{:written}] #{:written}]
                 (->> (m/write test-writer :written)
                   m/listen
-                  m/writer-value))))
+                  deref))))
 
 (deftest test-censor
          (is (= [nil #{:new-written}]
                 (->> (m/write test-writer :written)
                   (m/censor (constantly #{:new-written})) 
-                  m/writer-value))))
+                  deref))))
 
 
 (defn state-f [n]
@@ -187,9 +187,87 @@
            (is (= (mv1 identity) (mv2 identity)))))
 
 
-#_(prn :do ((m/do
+(def vect-state (m/state-t vector))
+(defn state-t-f [n]
+  (vect-state (inc n)))
+
+(defn state-t-g [n]
+  (vect-state (+ n 5)))
+
+(deftest first-law-state-t
+  (let [mv1 (m/bind (vect-state 10) state-t-f)
+        mv2 (state-t-f 10)]
+    (is (= (mv1 {}) (mv2 {})))))
+
+(deftest second-law-state-t
+         (let [mv1 (m/bind (vect-state 10) vect-state) 
+               mv2 (vect-state 10)]
+           (is (= (mv1 :state-t) (mv2 :state-t)))))
+
+(deftest third-law-state-t
+         (let [mv1 (m/bind (m/bind (vect-state 4) state-t-f) state-t-g) 
+               mv2 (m/bind (vect-state 4)
+                           (fn [x]
+                             (m/bind (state-t-f x) state-t-g)))]
+           (is (= (mv1 :state-t) (mv2 :state-t)))))
+
+#_(deftest zero-law-state-t
+         (is (= (m/bind '() state-t-f)
+                '()))
+         (is (= (m/bind '(4) (constantly '()))
+                '()))
+         (is (= (m/plus [(list 5 6) '()])
+                (list 5 6)))
+         (is (= (m/plus ['() (list 5 6)])
+                (list 5 6))))
+
+
+#_(defn maybe-f [n]
+  (m/maybe (inc n)))
+
+#_(defn maybe-g [n]
+  (m/maybe (+ n 5)))
+
+#_(let [bound (m/bind (m/maybe 10) m/maybe)
+      _ (prn :bound bound)
+      l1 (m/maybe-value bound)
+      _ (prn :l1 l1)
+      l2 (m/maybe-value l1)
+      _ (prn :l2 l2)]
+  nil)
+
+#_(deftest first-law-maybe
+         (is (= (m/maybe-value (m/bind (m/maybe 10) maybe-f)) 
+                (m/maybe-value (maybe-f 10)))))
+
+#_(deftest second-law-maybe
+         (is (= (m/bind '(10) m/maybe)
+                '(10))))
+
+#_(deftest third-law-maybe
+         (is (= (m/bind (m/bind [4 9] maybe-f) maybe-g)
+                (m/bind [4 9] (fn [x]
+                                (m/bind (maybe-f x) maybe-g))))))
+
+#_(deftest zero-law-maybe
+         (is (= (m/bind '() maybe-f)
+                '()))
+         (is (= (m/bind '(4) (constantly '()))
+                '()))
+         (is (= (m/plus [(list 5 6) '()])
+                (list 5 6)))
+         (is (= (m/plus ['() (list 5 6)])
+                (list 5 6))))
+
+
+(deftest test-seq
+         (is (= [[3 :a] [3 :b] [5 :a] [5 :b]]
+                (m/seq [[3 5] [:a :b]]))))
+
+(prn :do ((m/do
             [x (m/state 29)
              y (m/state 12)
              :let [z (inc x)]]
             [x y z])
             :state)) 
+ 

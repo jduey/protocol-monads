@@ -41,13 +41,14 @@
             `(monads2.core/do-result ~example ~expr) 
             steps)))
 
-(defmacro seq [mvs]
-  (let [steps (map (fn [x]
-                     (let [sym (gensym)]
-                       [sym x]))
-                   mvs)
-        syms (map first steps)]
-    `(monads2.core/do [~@(apply concat steps)] [~@syms])))
+(defn seq [mvs]
+  (let [rest-steps (reduce (fn [steps mv]
+                             (fn [acc x]
+                               (bind mv (partial steps (conj acc x)))))
+                           (fn [acc x]
+                             (do-result (first mvs) (conj acc x)))
+                           (reverse (rest mvs)))]
+    (bind (first mvs) (partial rest-steps []))))
 
 
 (extend-type clojure.lang.PersistentList
@@ -142,6 +143,42 @@
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (clojure.set/union c1 c2)))
 
+(defprotocol maybe-proto
+  (maybe-value [_]))
+
+(deftype maybe-monad [v mv f alts]
+  maybe-proto
+  (maybe-value [_]
+               (prn :maybe v mv f alts)
+         (cond
+           f (let [new-v (maybe-value mv)]
+               (prn :new-v new-v :f f (f new-v))
+               (if (= ::nothing new-v)
+                 ::nothing
+                 (f new-v)))
+           alts (->> alts
+                  (map maybe-value)
+                  (drop-while #(= ::nothing))
+                  first)
+           :else v))
+  
+  Monad
+  (do-result [_ v]
+          (maybe-monad. v nil nil nil))
+  (bind [mv f]
+        (prn :binding mv f)
+        (maybe-monad. nil mv f nil)) 
+  
+  MonadZero
+  (zero [_]
+        (maybe-monad. ::nothing nil nil nil)) 
+  (plus-step [mv mvs]
+             (maybe-monad. nil nil nil (cons mv mvs))))
+
+(defn maybe [v]
+  (prn :new-maybe v)
+  (maybe-monad. v nil nil nil))
+
 
 (deftype state-monad [v mv f]
   clojure.lang.IFn
@@ -192,6 +229,33 @@
   (update-val key (constantly val)))
 
 
+(deftype state-transformer [m v mv f alts]
+  clojure.lang.IFn
+  (invoke [_ s]
+          
+          (cond
+            alts (plus (map #(% s) alts))
+            f (bind (mv s)
+                    (fn [[v ss]]
+                      ((f v) ss)))
+            :else (m [v s])))
+
+  Monad
+  (do-result [_ v]
+          (state-transformer. m v nil nil nil))
+  (bind [mv f]
+        (state-transformer. m nil mv f nil)) 
+  
+  MonadZero
+  (zero [_]
+        (zero (m nil))) 
+  (plus-step [mv mvs]
+             (state-transformer. m nil nil nil (cons mv mvs)))) 
+
+(defn state-t [m]
+  (fn [v]
+    (state-transformer. m v nil nil nil)))
+
 (deftype cont-monad [v mv f]
   clojure.lang.IFn
   (invoke [_ c]
@@ -209,9 +273,6 @@
   (cont-monad. v nil nil))
 
 
-(defprotocol writer-proto
-  (writer-value [_]))
-
 (extend-type java.lang.String
   writer-monad-protocol
   (writer-m-empty [_] "")
@@ -219,13 +280,13 @@
   (writer-m-combine [c1 c2] (str c1 c2)))
 
 (deftype writer-monad [v accumulator mv f]
-  writer-proto
-  (writer-value [_]
-                (if f
-                  (let [[v1 a1] (writer-value mv) 
-                        [v2 a2] (writer-value (f v1))]
-                    [v2 (writer-m-combine a1 a2)])
-                  [v accumulator]))
+  clojure.lang.IDeref
+  (deref [_]
+         (if f
+           (let [[v1 a1] (deref mv) 
+                 [v2 a2] (deref (f v1))]
+             [v2 (writer-m-combine a1 a2)])
+           [v accumulator]))
 
   Monad
   (do-result [_ v]
@@ -239,14 +300,14 @@
     (writer-monad. v empty-accumulator nil nil)))
 
 (defn write [m-result val-to-write]
-  (let [[_ a] (writer-value (m-result nil))]
+  (let [[_ a] (deref (m-result nil))]
     (writer-monad. nil (writer-m-add a val-to-write)
                    nil nil)))
 
 (defn listen [mv]
-  (let [[v a :as va] (writer-value mv)]
+  (let [[v a :as va] (deref mv)]
     (writer-monad. va a nil nil)))
 
 (defn censor [f mv]
-  (let [[v a] (writer-value mv)]
+  (let [[v a] (deref mv)]
     (writer-monad. v (f a) nil nil)))
