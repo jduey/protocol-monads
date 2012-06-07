@@ -1,5 +1,5 @@
 (ns monads2.core
-  (:refer-clojure :exclude [do seq])
+  (:refer-clojure :exclude [do seq map])
   (:require [clojure.set :as set]))
 
 (defprotocol Monad
@@ -12,16 +12,6 @@
 
 (defn plus [[mv & mvs]]
   (plus-step mv mvs))
-
-; for the writer monad
-(defprotocol writer-monad-protocol
-  "Accumulation of values into containers"
-  (writer-m-empty [_]
-  "return an empty container")
-  (writer-m-add [container value]
-  "add value to container, return new container")
-  (writer-m-combine [container1 container2]
-  "combine two containers, return new container"))
 
 (defmacro do [bindings expr]
   (let [steps (reverse (partition 2 bindings))
@@ -61,6 +51,34 @@
   (fn [& mvs]
     (comprehend (partial apply f) mvs)))
 
+(defn join [mv]
+  (bind mv identity))
+
+(defn fmap [f mv]
+  (bind mv (fn [x] (do-result mv (f x)))))
+
+(defn map [f xs]
+  (seq (clojure.core/map f xs)))
+
+(defn chain [steps]
+  (fn [x]
+    (let [mv ((first steps) x)
+          chain (reduce (fn [chain step]
+                          (fn [x]
+                            (bind (step x) chain)))
+                        (partial do-result mv)
+                        (reverse (rest steps)))]
+      (bind mv chain))))
+
+; for the writer monad
+(defprotocol writer-monad-protocol
+  "Accumulation of values into containers"
+  (writer-m-empty [_]
+  "return an empty container")
+  (writer-m-add [container value]
+  "add value to container, return new container")
+  (writer-m-combine [container1 container2]
+  "combine two containers, return new container"))
 
 (extend-type clojure.lang.PersistentList
   Monad
@@ -141,7 +159,7 @@
           (hash-set v))
   (bind [mv f]
         (apply set/union
-               (map f mv)))
+               (clojure.core/map f mv)))
 
   MonadZero
   (zero [_]
@@ -241,7 +259,7 @@
   clojure.lang.IFn
   (invoke [_ s]
     (cond
-     alts (plus (map #(% s) alts))
+     alts (plus (clojure.core/map #(% s) alts))
      f (bind (mv s)
              (fn [[v ss]]
                ((f v) ss)))
@@ -264,12 +282,16 @@
     (state-transformer. m v nil nil nil)))
 
 (deftype cont-monad [v mv f]
+  clojure.lang.IDeref
+  (deref [mv]
+    (mv identity))
+
   clojure.lang.IFn
   (invoke [_ c]
           (if f
             (mv (fn [v] ((f v) c)))
             (c v)))
- 
+
   Monad
   (do-result [_ v]
           (cont-monad. v nil nil))

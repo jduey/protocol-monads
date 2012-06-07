@@ -186,6 +186,9 @@
                       (m/bind (cont-f x) cont-g)))]
     (is (= (mv1 identity) (mv2 identity)))))
 
+(deftest deref-cont
+  (is (= 10 @(m/cont 10))))
+
 
 (def vect-state (m/state-t vector))
 (defn state-t-f [n]
@@ -264,6 +267,18 @@
          (apply lifted-+ (map vector (range 4)))))
    (is (= [6 :state]
           ((apply lifted-+ (map m/state (range 4))) :state)))))
+
+(deftest test-chain
+  (let [t (fn [x] (vector (inc x) (* 2 x)))
+        u (fn [x] (vector (dec x)))
+        st (fn [x] (m/state (inc x)))
+        su (fn [x] (m/state (* 2 x)))]
+    (is (= (map (fn [x] (m/do [y (t x) z (u y)] z)) (range 4))
+           (map (m/chain [t u]) (range 4))))
+    (is (= (m/do [x (range 4) y (t x) z (u y)] z)
+           ((m/chain [range t u]) 4)))
+    (is (= ((m/do [x (st 8) y (su x)] y) :state)
+           (((m/chain [st su]) 8) :state)))))
 
 #_(prn :do ((m/do
              [x (m/state 29)
