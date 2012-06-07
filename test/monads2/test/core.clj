@@ -158,8 +158,27 @@
          (is (= [:state :new-state]
                 ((m/update-state (constantly :new-state)) :state))))
 
+(deftest test-update-in-state
+  (are [expected in-state path args] (is (= expected
+                                       ((apply m/update-in-state path args) in-state)))
+       [2 {:a {:b 4}}]      {:a {:b 2}}  [:a :b]  [* 2]
+       [2 {:a {:b 3}}]      {:a {:b 2}}  [:a :b]  [inc]
+       [nil {:a {:b [1]}}]  {:a nil}     [:a :b]  [(fnil conj []) 1]))
+
+(deftest test-assoc-in-state
+  (are [expected in-state path val] (is (= expected
+                                        ((m/assoc-in-state path val) in-state)))
+       [nil {:a {:b 10}}] {:a nil} [:a :b] 10))
+
+(deftest test-get-in-state
+  (let [state {:a {:b 1} :c {:d {:e 2}}}]
+    (are [expected path] (is (= expected (first ((m/get-in-state path) state))))
+         1 [:a :b]
+         2 [:c :d :e]
+         {:b 1} [:a])))
+
 (deftest test-update-val
-         (is (= [5 {:a 19}] 
+         (is (= [5 {:a 19}]
                 ((m/update-val :a + 14) {:a 5}))))
 
 
