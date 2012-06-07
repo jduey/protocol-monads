@@ -134,6 +134,14 @@
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (vec (concat c1 c2))))
 
+(defn- lazy-concat [l ls]
+  (lazy-seq
+   (cond
+    (clojure.core/seq l) (cons (first l)
+                               (lazy-concat (rest l) ls))
+    (clojure.core/seq ls) (lazy-concat (first l) (rest ls))
+    :else (list))))
+
 (extend-type clojure.lang.LazySeq
   Monad
   (do-result [_ v]
@@ -145,8 +153,7 @@
   (zero [_]
         [])
   (plus-step [mv mvs]
-             ; TODO: make lazy
-             (apply concat mv mvs))
+             (lazy-concat mv mvs))
 
   writer-monad-protocol
   (writer-m-empty [_] (list))
@@ -173,34 +180,33 @@
   (writer-m-combine [c1 c2] (clojure.set/union c1 c2)))
 
 
-(declare zero-val)
+(declare maybe-zero-val)
 
 (deftype maybe-monad [v]
   clojure.lang.IDeref
   (deref [_]
-    (cond
-     :else v))
+    v)
 
   Monad
   (do-result [_ v]
     (maybe-monad. v))
   (bind [mv f]
-    (if (= mv zero-val)
-      zero-val
+    (if (= mv maybe-zero-val)
+      maybe-zero-val
       (f @mv)))
 
   MonadZero
   (zero [_]
-    zero-val)
+    maybe-zero-val)
   (plus-step [mv mvs]
     (let [mv (->> (cons mv mvs)
-                  (drop-while #(= zero-val %))
+                  (drop-while #(= maybe-zero-val %))
                   first)]
       (if (nil? mv)
-        zero-val
+        maybe-zero-val
         mv))))
 
-(def zero-val (maybe-monad. ::nothing))
+(def maybe-zero-val (maybe-monad. ::nothing))
 
 (defn maybe [v]
   (maybe-monad. v))
@@ -255,32 +261,6 @@
   (update-val key (constantly val)))
 
 
-(deftype state-transformer [m v mv f alts]
-  clojure.lang.IFn
-  (invoke [_ s]
-    (cond
-     alts (plus (clojure.core/map #(% s) alts))
-     f (bind (mv s)
-             (fn [[v ss]]
-               ((f v) ss)))
-     :else (m [v s])))
-
-  Monad
-  (do-result [_ v]
-          (state-transformer. m v nil nil nil))
-  (bind [mv f]
-        (state-transformer. m nil mv f nil))
-
-  MonadZero
-  (zero [_]
-        (zero (m nil)))
-  (plus-step [mv mvs]
-             (state-transformer. m nil nil nil (cons mv mvs))))
-
-(defn state-t [m]
-  (fn [v]
-    (state-transformer. m v nil nil nil)))
-
 (deftype cont-monad [v mv f]
   clojure.lang.IDeref
   (deref [mv]
@@ -300,6 +280,9 @@
 
 (defn cont [v]
   (cont-monad. v nil nil))
+
+(defn call-cc [f]
+  )
 
 
 (extend-type java.lang.String
@@ -340,3 +323,62 @@
 (defn censor [f mv]
   (let [[v a] (deref mv)]
     (writer-monad. v (f a) nil nil)))
+
+
+(deftype state-transformer [m v mv f alts]
+  clojure.lang.IFn
+  (invoke [_ s]
+    (cond
+     alts (plus (clojure.core/map #(% s) alts))
+     f (bind (mv s)
+             (fn [[v ss]]
+               ((f v) ss)))
+     :else (m [v s])))
+
+  Monad
+  (do-result [_ v]
+          (state-transformer. m v nil nil nil))
+  (bind [mv f]
+        (state-transformer. m nil mv f nil))
+
+  MonadZero
+  (zero [_]
+        (zero (m nil)))
+  (plus-step [mv mvs]
+             (state-transformer. m nil nil nil (cons mv mvs))))
+
+(defn state-t [m]
+  (fn [v]
+    (state-transformer. m v nil nil nil)))
+
+
+(deftype maybe-transformer [m v]
+  clojure.lang.IDeref
+  (deref [_]
+    v)
+
+  Monad
+  (do-result [_ v]
+          (maybe-transformer. m v))
+  (bind [mv f]
+    (let [v (deref mv)]
+      (maybe-transformer. m (bind v (fn [x]
+                                      (if (= x maybe-zero-val)
+                                        (m maybe-zero-val)
+                                        (deref (f (deref x)))))))))
+
+  MonadZero
+  (zero [_]
+        (maybe-transformer. m (m maybe-zero-val)))
+  (plus-step [mv mvs]
+    (maybe-transformer.
+     m (bind (deref mv)
+             (fn [x]
+               (cond
+                (and (= x maybe-zero-val) (empty? mvs)) (m maybe-zero-val)
+                (= x maybe-zero-val) (deref (plus mvs))
+                :else (m x)))))))
+
+(defn maybe-t [m]
+  (fn [v]
+    (maybe-transformer. m (m (maybe v)))))

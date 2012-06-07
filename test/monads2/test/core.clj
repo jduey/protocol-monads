@@ -215,14 +215,14 @@
     (is (= (mv1 :state-t) (mv2 :state-t)))))
 
 (deftest zero-law-state-t
-    (is (= (m/bind '() state-t-f)
-           '()))
-    (is (= (m/bind '(4) (constantly '()))
-           '()))
-    (is (= (m/plus [(list 5 6) '()])
-           (list 5 6)))
-    (is (= (m/plus ['() (list 5 6)])
-           (list 5 6))))
+  (is (= (m/bind '() state-t-f)
+         '()))
+  (is (= (m/bind '(4) (constantly '()))
+         '()))
+  (is (= (m/plus [(list 5 6) '()])
+         (list 5 6)))
+  (is (= (m/plus ['() (list 5 6)])
+         (list 5 6))))
 
 
 (defn maybe-f [n]
@@ -263,10 +263,10 @@
 
 (deftest test-lift
   (let [lifted-+ (m/lift +)]
-   (is (= [6]
-         (apply lifted-+ (map vector (range 4)))))
-   (is (= [6 :state]
-          ((apply lifted-+ (map m/state (range 4))) :state)))))
+    (is (= [6]
+           (apply lifted-+ (map vector (range 4)))))
+    (is (= [6 :state]
+           ((apply lifted-+ (map m/state (range 4))) :state)))))
 
 (deftest test-chain
   (let [t (fn [x] (vector (inc x) (* 2 x)))
@@ -279,6 +279,40 @@
            ((m/chain [range t u]) 4)))
     (is (= ((m/do [x (st 8) y (su x)] y) :state)
            (((m/chain [st su]) 8) :state)))))
+
+
+(def vect-maybe (m/maybe-t vector))
+(defn maybe-t-f [n]
+  (vect-maybe (inc n)))
+
+(defn maybe-t-g [n]
+  (vect-maybe (+ n 5)))
+
+(deftest first-law-maybe-t
+  #_(is (= @(first @(m/bind (vect-maybe 10) maybe-t-f))
+           @(first @(maybe-t-f 10)))))
+
+(deftest second-law-maybe-t
+  #_(is (= @(first @(m/bind (vect-maybe 10) vect-maybe))
+           @(first @(vect-maybe 10)))))
+
+(deftest third-law-maybe-t
+  #_(is (= @(first @(m/bind (m/bind (vect-maybe 4) maybe-t-f) maybe-t-g))
+           @(first @(m/bind (vect-maybe 4)
+                            (fn [x]
+                              (m/bind (maybe-t-f x) maybe-t-g)))))))
+
+(deftest zero-law-maybe-t
+  (is (= (first @(m/bind (m/zero (vect-maybe nil)) maybe-t-f))
+         (first @(m/zero (vect-maybe nil)))))
+  (is (= (first @(m/bind (vect-maybe 4) (constantly (m/zero (vect-maybe nil)))))
+         (first @(m/zero (vect-maybe nil)))))
+  (is (= @(first @(m/plus [(vect-maybe 4) (m/zero (vect-maybe nil))]))
+         @(first @(vect-maybe 4))))
+  (is (= @(first @(m/plus [(m/zero (vect-maybe nil)) (vect-maybe 4)]))
+         @(first @(vect-maybe 4)))))
+
+
 
 #_(prn :do ((m/do
              [x (m/state 29)
