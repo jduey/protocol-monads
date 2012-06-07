@@ -258,6 +258,13 @@
   (is (= [[]]
          (m/seq vector []))))
 
+(deftest test-lift
+  (let [lifted-+ (m/lift +)]
+   (is (= [6]
+         (apply lifted-+ (map vector (range 4)))))
+   (is (= [6 :state]
+          ((apply lifted-+ (map m/state (range 4))) :state)))))
+
 #_(prn :do ((m/do
              [x (m/state 29)
               y (m/state 12)
