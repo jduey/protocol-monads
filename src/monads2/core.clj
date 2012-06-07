@@ -359,7 +359,7 @@
 
   Monad
   (do-result [_ v]
-          (maybe-transformer. m v))
+    (maybe-transformer. m (m (maybe v))))
   (bind [mv f]
     (let [v (deref mv)]
       (maybe-transformer. m (bind v (fn [x]
@@ -369,7 +369,7 @@
 
   MonadZero
   (zero [_]
-        (maybe-transformer. m (m maybe-zero-val)))
+    (maybe-transformer. m (m maybe-zero-val)))
   (plus-step [mv mvs]
     (maybe-transformer.
      m (bind (deref mv)
