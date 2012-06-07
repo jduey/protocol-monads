@@ -219,15 +219,33 @@
 (defn get-state []
   (update-state identity))
 
+(defn update-in-state
+  "Returns a state-monadic value that assumes the state to be a map and
+   updates the value at the given path with the return value of f applied
+   to the old value and args.  The old value is returned."
+  [path f & args]
+  (monads2.core/do [s (get-state)
+                    _ (set-state (apply update-in s path f args))]
+                   (get-in s path)))
+
+(defn get-in-state
+  "Returns a state-monadic value that assumes the state to be a map and
+   returns the value corresponding to the given key. The state is not modified."
+  [path & [default]]
+  (monads2.core/do [s (get-state)]
+                   (get-in s path default)))
+
+(defn assoc-in-state
+  "Returns a state-monad value that assumes the state to be a map and
+   replaces the value associated with path by val. The old value is returned."
+  [path val]
+  (update-in-state path (constantly val)))
+
 (defn get-val [key]
-  (monads2.core/do
-    [s (get-state)]
-    (get s key)))
+  (get-in-state [key]))
 
 (defn update-val [key f & args]
-  (monads2.core/do
-    [s (update-state #(apply update-in % [key] f args))]
-    (get s key)))
+  (apply update-in-state [key] f args))
 
 (defn set-val [key val]
   (update-val key (constantly val)))
