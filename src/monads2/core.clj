@@ -38,7 +38,7 @@
                                 ~expr)
                 :else `(monads2.core/bind ~mv (fn [~sym]
                                                 ~expr))))
-            `(monads2.core/do-result ~example ~expr) 
+            `(monads2.core/do-result ~example ~expr)
             steps)))
 
 (defn seq
@@ -61,13 +61,13 @@
           (list v))
   (bind [mv f]
         (mapcat f mv))
-  
+
   MonadZero
   (zero [_]
         (list))
   (plus-step [mv mvs]
              (apply concat mv mvs))
-  
+
   writer-monad-protocol
   (writer-m-empty [_] (list))
   (writer-m-add [c v] (conj c v))
@@ -86,10 +86,10 @@
   (plus-step [mv mvs]
              (apply concat mv mvs))
 
-  writer-monad-protocol 
-  (writer-m-empty [_] (list)) 
-  (writer-m-add [c v] (conj c v)) 
-  (writer-m-combine [c1 c2] (concat c1 c2))) 
+  writer-monad-protocol
+  (writer-m-empty [_] (list))
+  (writer-m-add [c v] (conj c v))
+  (writer-m-combine [c1 c2] (concat c1 c2)))
 
 (extend-type clojure.lang.PersistentVector
   Monad
@@ -123,10 +123,10 @@
              ; TODO: make lazy
              (apply concat mv mvs))
 
-  writer-monad-protocol 
-  (writer-m-empty [_] (list)) 
-  (writer-m-add [c v] (conj c v)) 
-  (writer-m-combine [c1 c2] (concat c1 c2))) 
+  writer-monad-protocol
+  (writer-m-empty [_] (list))
+  (writer-m-add [c v] (conj c v))
+  (writer-m-combine [c1 c2] (concat c1 c2)))
 
 (extend-type clojure.lang.PersistentHashSet
   Monad
@@ -135,7 +135,7 @@
   (bind [mv f]
         (apply set/union
                (map f mv)))
-  
+
   MonadZero
   (zero [_]
         #{})
@@ -147,41 +147,38 @@
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (clojure.set/union c1 c2)))
 
-(defprotocol maybe-proto
-  (maybe-value [_]))
 
-(deftype maybe-monad [v mv f alts]
-  maybe-proto
-  (maybe-value [_]
-               (prn :maybe v mv f alts)
-         (cond
-           f (let [new-v (maybe-value mv)]
-               (prn :new-v new-v :f f (f new-v))
-               (if (= ::nothing new-v)
-                 ::nothing
-                 (f new-v)))
-           alts (->> alts
-                  (map maybe-value)
-                  (drop-while #(= ::nothing))
-                  first)
-           :else v))
-  
+(declare zero-val)
+
+(deftype maybe-monad [v]
+  clojure.lang.IDeref
+  (deref [_]
+    (cond
+     :else v))
+
   Monad
   (do-result [_ v]
-          (maybe-monad. v nil nil nil))
+    (maybe-monad. v))
   (bind [mv f]
-        (prn :binding mv f)
-        (maybe-monad. nil mv f nil)) 
-  
+    (if (= mv zero-val)
+      zero-val
+      (f @mv)))
+
   MonadZero
   (zero [_]
-        (maybe-monad. ::nothing nil nil nil)) 
+    zero-val)
   (plus-step [mv mvs]
-             (maybe-monad. nil nil nil (cons mv mvs))))
+    (let [mv (->> (cons mv mvs)
+                  (drop-while #(= zero-val %))
+                  first)]
+      (if (nil? mv)
+        zero-val
+        mv))))
+
+(def zero-val (maybe-monad. ::nothing))
 
 (defn maybe [v]
-  (prn :new-maybe v)
-  (maybe-monad. v nil nil nil))
+  (maybe-monad. v))
 
 
 (deftype state-monad [v mv f]
@@ -189,9 +186,9 @@
   (invoke [_ s]
           (if f
             (let [[v ss] (mv s)]
-              ((f v) ss)) 
+              ((f v) ss))
             [v s]))
-  
+
   Monad
   (do-result [_ v]
           (state-monad. v nil nil))
@@ -236,25 +233,24 @@
 (deftype state-transformer [m v mv f alts]
   clojure.lang.IFn
   (invoke [_ s]
-          
-          (cond
-            alts (plus (map #(% s) alts))
-            f (bind (mv s)
-                    (fn [[v ss]]
-                      ((f v) ss)))
-            :else (m [v s])))
+    (cond
+     alts (plus (map #(% s) alts))
+     f (bind (mv s)
+             (fn [[v ss]]
+               ((f v) ss)))
+     :else (m [v s])))
 
   Monad
   (do-result [_ v]
           (state-transformer. m v nil nil nil))
   (bind [mv f]
-        (state-transformer. m nil mv f nil)) 
-  
+        (state-transformer. m nil mv f nil))
+
   MonadZero
   (zero [_]
-        (zero (m nil))) 
+        (zero (m nil)))
   (plus-step [mv mvs]
-             (state-transformer. m nil nil nil (cons mv mvs)))) 
+             (state-transformer. m nil nil nil (cons mv mvs))))
 
 (defn state-t [m]
   (fn [v]
@@ -264,9 +260,9 @@
   clojure.lang.IFn
   (invoke [_ c]
           (if f
-            (mv (fn [v] ((f v) c))) 
+            (mv (fn [v] ((f v) c)))
             (c v)))
-  
+ 
   Monad
   (do-result [_ v]
           (cont-monad. v nil nil))
@@ -287,7 +283,7 @@
   clojure.lang.IDeref
   (deref [_]
          (if f
-           (let [[v1 a1] (deref mv) 
+           (let [[v1 a1] (deref mv)
                  [v2 a2] (deref (f v1))]
              [v2 (writer-m-combine a1 a2)])
            [v accumulator]))
