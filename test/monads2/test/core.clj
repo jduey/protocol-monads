@@ -224,6 +224,8 @@
   (is (= (m/plus ['() (list 5 6)])
          (list 5 6))))
 
+; TODO: test state-t with m/do
+
 
 (defn maybe-f [n]
   (m/maybe (inc n)))
@@ -289,15 +291,15 @@
   (vect-maybe (+ n 5)))
 
 (deftest first-law-maybe-t
-  #_(is (= @(first @(m/bind (vect-maybe 10) maybe-t-f))
+  (is (= @(first @(m/bind (vect-maybe 10) maybe-t-f))
            @(first @(maybe-t-f 10)))))
 
 (deftest second-law-maybe-t
-  #_(is (= @(first @(m/bind (vect-maybe 10) vect-maybe))
+  (is (= @(first @(m/bind (vect-maybe 10) vect-maybe))
            @(first @(vect-maybe 10)))))
 
 (deftest third-law-maybe-t
-  #_(is (= @(first @(m/bind (m/bind (vect-maybe 4) maybe-t-f) maybe-t-g))
+  (is (= @(first @(m/bind (m/bind (vect-maybe 4) maybe-t-f) maybe-t-g))
            @(first @(m/bind (vect-maybe 4)
                             (fn [x]
                               (m/bind (maybe-t-f x) maybe-t-g)))))))
@@ -312,6 +314,109 @@
   (is (= @(first @(m/plus [(m/zero (vect-maybe nil)) (vect-maybe 4)]))
          @(first @(vect-maybe 4)))))
 
+; TODO: test maybe-t with m/do
+
+
+(def set-list (m/list-t hash-set))
+(defn list-t-f [n]
+  (set-list (inc n)))
+
+(defn list-t-g [n]
+  (set-list (+ n 5)))
+
+(deftest first-law-list-t
+  (is (= @(m/bind (set-list 10) list-t-f)
+         @(list-t-f 10))))
+
+(deftest second-law-list-t
+  (is (= @(m/bind (set-list 10) set-list)
+         @(set-list 10))))
+
+(deftest third-law-list-t
+  (is (= @(m/bind (m/bind (set-list 4) list-t-f) list-t-g)
+         @(m/bind (set-list 4)
+                  (fn [x]
+                    (m/bind (list-t-f x) list-t-g))))))
+
+(deftest zero-law-list-t
+  (is (= @(m/bind (m/zero (set-list nil)) list-t-f)
+         @(m/zero (set-list nil))))
+  (is (= @(m/bind (set-list 4) (constantly (m/zero (set-list nil))))
+         @(m/zero (set-list nil))))
+  (is (= @(m/plus [(set-list 4) (m/zero (set-list nil))])
+         @(set-list 4)))
+  (is (= @(m/plus [(m/zero (set-list nil)) (set-list 4)])
+         @(set-list 4))))
+
+; TODO: test list- with m/do
+
+
+(def set-vect (m/vector-t hash-set))
+(defn vector-t-f [n]
+  (set-vect (inc n)))
+
+(defn vector-t-g [n]
+  (set-vect (+ n 5)))
+
+(deftest first-law-vector-t
+  (is (= @(m/bind (set-vect 10) vector-t-f)
+         @(vector-t-f 10))))
+
+(deftest second-law-vector-t
+  (is (= @(m/bind (set-vect 10) set-vect)
+         @(set-vect 10))))
+
+(deftest third-law-vector-t
+  (is (= @(m/bind (m/bind (set-vect 4) vector-t-f) vector-t-g)
+         @(m/bind (set-vect 4)
+                  (fn [x]
+                    (m/bind (vector-t-f x) vector-t-g))))))
+
+(deftest zero-law-vector-t
+  (is (= @(m/bind (m/zero (set-vect nil)) vector-t-f)
+         @(m/zero (set-vect nil))))
+  (is (= @(m/bind (set-vect 4) (constantly (m/zero (set-vect nil))))
+         @(m/zero (set-vect nil))))
+  (is (= @(m/plus [(set-vect 4) (m/zero (set-vect nil))])
+         @(set-vect 4)))
+  (is (= @(m/plus [(m/zero (set-vect nil)) (set-vect 4)])
+         @(set-vect 4))))
+
+; TODO: test vector-t with m/do
+
+
+(def vect-set (m/set-t vector))
+(defn set-t-f [n]
+  (vect-set (inc n)))
+
+(defn set-t-g [n]
+  (vect-set (+ n 5)))
+
+(deftest first-law-set-t
+  (is (= @(m/bind (vect-set 10) set-t-f)
+         @(set-t-f 10))))
+
+(deftest second-law-set-t
+  (is (= @(m/bind (vect-set 10) vect-set)
+         @(vect-set 10))))
+
+(deftest third-law-set-t
+  (is (= @(m/bind (m/bind (vect-set 4) set-t-f) set-t-g)
+         @(m/bind (vect-set 4)
+                  (fn [x]
+                    (m/bind (set-t-f x) set-t-g))))))
+
+(deftest zero-law-set-t
+  (is (= @(m/bind (m/zero (vect-set nil)) set-t-f)
+         @(m/zero (vect-set nil))))
+  (is (= @(m/bind (vect-set 4) (constantly (m/zero (vect-set nil))))
+         @(m/zero (vect-set nil))))
+  (is (= @(m/plus [(vect-set 4) (m/zero (vect-set nil))])
+         @(vect-set 4)))
+  (is (= @(m/plus [(m/zero (vect-set nil)) (vect-set 4)])
+         @(vect-set 4))))
+
+; TODO: test set- with m/do
 
 
 #_(prn :do ((m/do
