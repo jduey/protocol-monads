@@ -70,7 +70,7 @@
                         (reverse (rest steps)))]
       (bind mv chain))))
 
-                                        ; for the writer monad
+;; for the writer monad
 (defprotocol writer-monad-protocol
   "Accumulation of values into containers"
   (writer-m-empty [_]
@@ -283,6 +283,7 @@
 (defn cont [v]
   (cont-monad. v nil nil))
 
+;; holding off on implementing this until later
 (defn call-cc [f]
   )
 
@@ -293,38 +294,34 @@
   (writer-m-add [c v] (str c v))
   (writer-m-combine [c1 c2] (str c1 c2)))
 
-(deftype writer-monad [v accumulator mv f]
+(deftype writer-monad [v accumulator]
   clojure.lang.IDeref
   (deref [_]
-    (if f
-      (let [[v1 a1] (deref mv)
-            [v2 a2] (deref (f v1))]
-        [v2 (writer-m-combine a1 a2)])
-      [v accumulator]))
+    [v accumulator])
 
   Monad
   (do-result [_ v]
-    (writer-monad. v (writer-m-empty accumulator)
-                   nil nil))
+    (writer-monad. v (writer-m-empty accumulator)))
   (bind [mv f]
-    (writer-monad. nil nil mv f)))
+    (let [[v1 a1] (deref mv)
+          [v2 a2] (deref (f v1))]
+      (writer-monad. v2 (writer-m-combine a1 a2)))))
 
-(defn writer [empty-accumulator]
+(defn writer [accumulator]
   (fn [v]
-    (writer-monad. v empty-accumulator nil nil)))
+    (writer-monad. v accumulator)))
 
 (defn write [m-result val-to-write]
   (let [[_ a] (deref (m-result nil))]
-    (writer-monad. nil (writer-m-add a val-to-write)
-                   nil nil)))
+    (writer-monad. nil (writer-m-add a val-to-write))))
 
 (defn listen [mv]
   (let [[v a :as va] (deref mv)]
-    (writer-monad. va a nil nil)))
+    (writer-monad. va a)))
 
 (defn censor [f mv]
   (let [[v a] (deref mv)]
-    (writer-monad. v (f a) nil nil)))
+    (writer-monad. v (f a))))
 
 
 (deftype state-transformer [m v mv f alts]
@@ -387,8 +384,6 @@
 
 
 
-(def ^:private mcat (lift concat))
-
 (deftype list-transformer [m v]
   clojure.lang.IDeref
   (deref [_]
@@ -400,18 +395,18 @@
   (bind [mv f]
     (let [v (deref mv)]
       (list-transformer. m (bind v (fn [xs]
-                                       (if (clojure.core/seq xs)
-                                         (->> xs
-                                              (map (comp deref f))
-                                              (fmap (partial apply lazy-concat)))
-                                         (m '())))))))
+                                     (if (clojure.core/seq xs)
+                                       (->> xs
+                                            (map (comp deref f))
+                                            (fmap (partial apply lazy-concat)))
+                                       (m '())))))))
 
   MonadZero
   (zero [_]
     (list-transformer. m (m '())))
   (plus-step [mv mvs]
     (list-transformer.
-     m (reduce mcat
+     m (reduce (lift concat)
                (m '())
                (clojure.core/map deref (cons mv mvs))))))
 
@@ -462,11 +457,11 @@
   (bind [mv f]
     (let [v (deref mv)]
       (set-transformer. m (bind v (fn [xs]
-                                       (if (clojure.core/seq xs)
-                                         (->> xs
-                                              (map (comp deref f))
-                                              (fmap (partial apply lazy-concat)))
-                                         (m #{})))))))
+                                    (if (clojure.core/seq xs)
+                                      (->> xs
+                                           (map (comp deref f))
+                                           (fmap (partial apply lazy-concat)))
+                                      (m #{})))))))
 
   MonadZero
   (zero [_]
@@ -480,3 +475,38 @@
 (defn set-t [m]
   (fn [v]
     (set-transformer. m (m (hash-set v)))))
+
+
+(deftype writer-transformer [m mv writer-result]
+  clojure.lang.IDeref
+  (deref [_]
+    mv)
+
+  Monad
+  (do-result [_ v]
+    (writer-transformer.
+     m (m (writer-result v)) writer-result))
+  (bind [mv f]
+    (let [mv (deref mv)]
+      (writer-transformer.
+       m (bind mv (fn [v]
+                    (let [[v1 a1] (deref v)]
+                      (bind (deref (f v1))
+                            (fn [v]
+                              (let [[v2 a2] (deref v)]
+                                (m (writer-monad. v2 (writer-m-combine a1 a2)))))))))
+       writer-result)))
+
+  MonadZero
+  (zero [mv]
+    (let [v (deref mv)]
+      (writer-transformer. m (zero v) writer-result)))
+  (plus-step [mv mvs]
+    (writer-transformer.
+     m (plus (clojure.core/map deref (cons mv mvs)))
+     writer-result)))
+
+(defn writer-t [m accumulator]
+  (let [writer-result (writer accumulator)]
+    (fn [v]
+      (writer-transformer. m (m (writer-result v)) writer-result))))

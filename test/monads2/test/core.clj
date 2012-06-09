@@ -224,7 +224,11 @@
   (is (= (m/plus ['() (list 5 6)])
          (list 5 6))))
 
-; TODO: test state-t with m/do
+(deftest do-state-t
+  (is (= [[[10 15] :state]]
+         ((m/do [x (state-t-f 9)
+                 y (state-t-g x)]
+                [x y]) :state))))
 
 
 (defn maybe-f [n]
@@ -314,7 +318,11 @@
   (is (= @(first @(m/plus [(m/zero (vect-maybe nil)) (vect-maybe 4)]))
          @(first @(vect-maybe 4)))))
 
-; TODO: test maybe-t with m/do
+(deftest do-maybe-t
+  (is (= [10 15]
+         @(first @(m/do [x (maybe-t-f 9)
+                         y (maybe-t-g x)]
+                        [x y])))))
 
 
 (def set-list (m/list-t hash-set))
@@ -348,7 +356,11 @@
   (is (= @(m/plus [(m/zero (set-list nil)) (set-list 4)])
          @(set-list 4))))
 
-; TODO: test list- with m/do
+(deftest do-list-t
+  (is (= #{(list [10 15])}
+         @(m/do [x (list-t-f 9)
+                 y (list-t-g x)]
+                [x y]))))
 
 
 (def set-vect (m/vector-t hash-set))
@@ -382,7 +394,11 @@
   (is (= @(m/plus [(m/zero (set-vect nil)) (set-vect 4)])
          @(set-vect 4))))
 
-; TODO: test vector-t with m/do
+(deftest do-vector-t
+  (is (= #{(vector [10 15])}
+         @(m/do [x (vector-t-f 9)
+                 y (vector-t-g x)]
+                [x y]))))
 
 
 (def vect-set (m/set-t vector))
@@ -416,12 +432,47 @@
   (is (= @(m/plus [(m/zero (vect-set nil)) (vect-set 4)])
          @(vect-set 4))))
 
-; TODO: test set- with m/do
+(deftest do-set-t
+  (is (= [(hash-set [10 15])]
+         @(m/do [x (set-t-f 9)
+                 y (set-t-g x)]
+                [x y]))))
 
 
-#_(prn :do ((m/do
-             [x (m/state 29)
-              y (m/state 12)
-              :let [z (inc x)]]
-             [x y z])
-            :state))
+(def vect-writer (m/writer-t hash-set []))
+(defn writer-t-f [n]
+  (vect-writer (inc n)))
+
+(defn writer-t-g [n]
+  (vect-writer (+ n 5)))
+
+(deftest first-law-writer-t
+  (is (= @(first @(m/bind (vect-writer 10) writer-t-f))
+         @(first @(writer-t-f 10)))))
+
+(deftest second-law-writer-t
+  (is (= @(first @(m/bind (vect-writer 10) vect-writer))
+         @(first @(vect-writer 10)))))
+
+(deftest third-law-writer-t
+  (is (= @(first @(m/bind (m/bind (vect-writer 4) writer-t-f) writer-t-g))
+         @(first @(m/bind (vect-writer 4)
+                          (fn [x]
+                            (m/bind (writer-t-f x) writer-t-g)))))))
+
+(deftest zero-law-writer-t
+  (is (= @(m/bind (m/zero (vect-writer nil)) writer-t-f)
+         @(m/zero (vect-writer nil))))
+  (is (= @(m/bind (vect-writer 4) (constantly (m/zero (vect-writer nil))))
+         @(m/zero (vect-writer nil))))
+  (is (= @(first @(m/plus [(vect-writer 4) (m/zero (vect-writer nil))]))
+         @(first @(vect-writer 4))))
+  (is (= @(first @(m/plus [(m/zero (vect-writer nil)) (vect-writer 4)]))
+         @(first @(vect-writer 4)))))
+
+(deftest do-writer-t
+  (is (= @(first @(vect-writer [10 15]))
+         @(first @(m/do [x (writer-t-f 9)
+                         y (writer-t-g x)]
+                        [x y])))))
+
