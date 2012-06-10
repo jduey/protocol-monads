@@ -226,9 +226,10 @@
 
 (deftest do-state-t
   (is (= [[[10 15] :state]]
-         ((m/do [x (state-t-f 9)
-                 y (state-t-g x)]
-                [x y]) :state))))
+         ((m/do vect-state
+           [x (state-t-f 9)
+            y (state-t-g x)]
+           [x y]) :state))))
 
 
 (defn maybe-f [n]
@@ -279,11 +280,11 @@
         u (fn [x] (vector (dec x)))
         st (fn [x] (m/state (inc x)))
         su (fn [x] (m/state (* 2 x)))]
-    (is (= (map (fn [x] (m/do [y (t x) z (u y)] z)) (range 4))
+    (is (= (map (fn [x] (m/do vector [y (t x) z (u y)] z)) (range 4))
            (map (m/chain [t u]) (range 4))))
-    (is (= (m/do [x (range 4) y (t x) z (u y)] z)
+    (is (= (m/do vector [x (range 4) y (t x) z (u y)] z)
            ((m/chain [range t u]) 4)))
-    (is (= ((m/do [x (st 8) y (su x)] y) :state)
+    (is (= ((m/do m/state [x (st 8) y (su x)] y) :state)
            (((m/chain [st su]) 8) :state)))))
 
 
@@ -320,7 +321,8 @@
 
 (deftest do-maybe-t
   (is (= [10 15]
-         @(first @(m/do [x (maybe-t-f 9)
+         @(first @(m/do vect-maybe
+                        [x (maybe-t-f 9)
                          y (maybe-t-g x)]
                         [x y])))))
 
@@ -358,7 +360,8 @@
 
 (deftest do-list-t
   (is (= #{(list [10 15])}
-         @(m/do [x (list-t-f 9)
+         @(m/do set-list
+                [x (list-t-f 9)
                  y (list-t-g x)]
                 [x y]))))
 
@@ -396,7 +399,8 @@
 
 (deftest do-vector-t
   (is (= #{(vector [10 15])}
-         @(m/do [x (vector-t-f 9)
+         @(m/do set-vect
+                [x (vector-t-f 9)
                  y (vector-t-g x)]
                 [x y]))))
 
@@ -434,7 +438,8 @@
 
 (deftest do-set-t
   (is (= [(hash-set [10 15])]
-         @(m/do [x (set-t-f 9)
+         @(m/do vect-set
+                [x (set-t-f 9)
                  y (set-t-g x)]
                 [x y]))))
 
@@ -472,7 +477,24 @@
 
 (deftest do-writer-t
   (is (= @(first @(vect-writer [10 15]))
-         @(first @(m/do [x (writer-t-f 9)
+         @(first @(m/do vect-writer
+                        [x (writer-t-f 9)
                          y (writer-t-g x)]
                         [x y])))))
+
+(def parse-m (m/state-t m/maybe))
+(deftest test-do
+  (is (= [19 {:val 19}]
+         @((m/do parse-m
+                 [_ (m/set-val :val 19)]
+                 19)
+           {})))
+  (let [tinc #(vector (inc %))]
+    (is ( = [[1 2 3] [3 4 5]]
+            (m/do list
+                  [a (range 5)
+                   :when (odd? a)
+                   x (tinc a)
+                   y (tinc x)]
+                  [a x y])))))
 

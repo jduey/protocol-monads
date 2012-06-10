@@ -13,32 +13,31 @@
 (defn plus [[mv & mvs]]
   (plus-step mv mvs))
 
-(defmacro do [bindings expr]
-  (let [steps (reverse (partition 2 bindings))
-        example (->> steps
-                     (remove (comp keyword? first))
-                     first
-                     second)]
-    (reduce (fn [expr [sym mv]]
-              (cond
-               (= :when sym) `(if ~mv
-                                ~expr
-                                (monads2.core/zero ~example))
-               (= :let sym) `(let ~mv
-                               ~expr)
-               :else `(monads2.core/bind ~mv (fn [~sym]
-                                               ~expr))))
-            `(monads2.core/do-result ~example ~expr)
-            steps)))
+(defmacro do [result bindings expr]
+  (let [steps (partition 2 bindings)]
+    `(monads2.core/bind (~result nil)
+                        (fn [_#]
+                          ~(reduce (fn [expr [sym mv]]
+                                    (cond
+                                     (= :when sym) `(if ~mv
+                                                      ~expr
+                                                      (monads2.core/zero (~result nil)))
+                                     (= :let sym) `(let ~mv
+                                                     ~expr)
+                                     :else `(monads2.core/bind ~mv (fn [~sym]
+                                                                     ~expr))))
+                                  `(monads2.core/do-result (~result nil) ~expr)
+                                  (reverse steps))))))
 
 (defn- comprehend [f mvs]
-  (let [rest-steps (reduce (fn [steps mv]
+  (let [mv (first mvs)
+        rest-steps (reduce (fn [steps mv]
                              (fn [acc x]
                                (bind mv (partial steps (conj acc x)))))
                            (fn [acc x]
-                             (do-result (first mvs) (f (conj acc x))))
+                             (do-result mv (f (conj acc x))))
                            (reverse (rest mvs)))]
-    (bind (first mvs) (partial rest-steps []))))
+    (bind mv (partial rest-steps []))))
 
 (defn seq
   ([mvs] (seq (first mvs) mvs))
@@ -250,14 +249,14 @@
   (update-state identity))
 
 (defn get-val [key]
-  (monads2.core/do
-   [s (get-state)]
-   (get s key)))
+  (monads2.core/do monads2.core/state
+                   [s (get-state)]
+                   (get s key)))
 
 (defn update-val [key f & args]
-  (monads2.core/do
-   [s (update-state #(apply update-in % [key] f args))]
-   (get s key)))
+  (monads2.core/do monads2.core/state
+                   [s (update-state #(apply update-in % [key] f args))]
+                   (get s key)))
 
 (defn set-val [key val]
   (update-val key (constantly val)))
