@@ -215,6 +215,7 @@
     (is (= (mv1 :state-t) (mv2 :state-t)))))
 
 (deftest zero-law-state-t
+  (is (= [[[] :state]] ((m/zero (vect-state nil)) :state)))
   (is (= (m/bind '() state-t-f)
          '()))
   (is (= (m/bind '(4) (constantly '()))
@@ -225,6 +226,12 @@
          (list 5 6))))
 
 (deftest do-state-t
+  (is (= [[[] :state]]
+         ((m/do vect-state
+                [:when false]
+                :something)
+          :state)))
+
   (is (= [[[10 15] :state]]
          ((m/do vect-state
            [x (state-t-f 9)
@@ -310,6 +317,7 @@
                               (m/bind (maybe-t-f x) maybe-t-g)))))))
 
 (deftest zero-law-maybe-t
+  (is (= m/maybe-zero-val (first @ (m/zero (vect-maybe nil)))))
   (is (= (first @(m/bind (m/zero (vect-maybe nil)) maybe-t-f))
          (first @(m/zero (vect-maybe nil)))))
   (is (= (first @(m/bind (vect-maybe 4) (constantly (m/zero (vect-maybe nil)))))
@@ -349,6 +357,7 @@
                     (m/bind (list-t-f x) list-t-g))))))
 
 (deftest zero-law-list-t
+  (is (= #{'()} @(m/zero (set-list nil))))
   (is (= @(m/bind (m/zero (set-list nil)) list-t-f)
          @(m/zero (set-list nil))))
   (is (= @(m/bind (set-list 4) (constantly (m/zero (set-list nil))))
@@ -388,6 +397,7 @@
                     (m/bind (vector-t-f x) vector-t-g))))))
 
 (deftest zero-law-vector-t
+  (is (= #{[]} @(m/zero (set-vect nil))))
   (is (= @(m/bind (m/zero (set-vect nil)) vector-t-f)
          @(m/zero (set-vect nil))))
   (is (= @(m/bind (set-vect 4) (constantly (m/zero (set-vect nil))))
@@ -427,6 +437,7 @@
                     (m/bind (set-t-f x) set-t-g))))))
 
 (deftest zero-law-set-t
+  (is (= [#{}] @(m/zero (vect-set nil))))
   (is (= @(m/bind (m/zero (vect-set nil)) set-t-f)
          @(m/zero (vect-set nil))))
   (is (= @(m/bind (vect-set 4) (constantly (m/zero (vect-set nil))))
@@ -466,6 +477,7 @@
                             (m/bind (writer-t-f x) writer-t-g)))))))
 
 (deftest zero-law-writer-t
+  (is (= #{} @(m/zero (vect-writer nil))))
   (is (= @(m/bind (m/zero (vect-writer nil)) writer-t-f)
          @(m/zero (vect-writer nil))))
   (is (= @(m/bind (vect-writer 4) (constantly (m/zero (vect-writer nil))))
@@ -483,12 +495,14 @@
                         [x y])))))
 
 (def parse-m (m/state-t m/maybe))
+
 (deftest test-do
   (is (= [19 {:val 19}]
          @((m/do parse-m
                  [_ (m/set-val :val 19)]
                  19)
            {})))
+
   (let [tinc #(vector (inc %))]
     (is ( = [[1 2 3] [3 4 5]]
             (m/do list
