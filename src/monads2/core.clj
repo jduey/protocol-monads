@@ -13,7 +13,18 @@
 (defn plus [[mv & mvs]]
   (plus-step mv mvs))
 
-(defmacro do [result bindings expr]
+(defmacro do
+  "Monad comprehension. Takes the name of a monad (like vector, hash-set),
+   a vector of steps given as binding-form/monadic-expression pairs, and
+   a result value specified by expr. The monadic-expression terms can use
+   the binding variables of the previous steps.
+   If the monad contains a definition of m-zero, the step list can also
+   contain conditions of the form :when p, where the predicate p can
+   contain the binding variables from all previous steps.
+   A clause of the form :let [binding-form expr ...], where the bindings
+   are given as a vector as for the use in let, establishes additional
+   bindings that can be used in the following steps."
+  [result bindings expr]
   (let [steps (partition 2 bindings)]
     `(monads2.core/bind (~result nil)
                         (fn [_#]
@@ -40,26 +51,44 @@
     (bind mv (partial rest-steps []))))
 
 (defn seq
+  "'Executes' the monadic values in ms and returns a sequence of the
+   basic values contained in them."
   ([mvs] (seq (first mvs) mvs))
   ([m-result mvs]
      (if (clojure.core/seq mvs)
        (comprehend identity mvs)
        (m-result []))))
 
-(defn lift [f]
+(defn lift
+  "Converts of function f to a function of monadic arguments
+   returning a monadic value."
+  [f]
   (fn [& mvs]
     (comprehend (partial apply f) mvs)))
 
-(defn join [mv]
+(defn join
+  "Converts a monadic value containing a monadic value into a 'simple'
+   monadic value."
+  [mv]
   (bind mv identity))
 
-(defn fmap [f mv]
+(defn fmap
+  "Bind the monadic value m to the function returning (f x) for argument x"
+  [f mv]
   (bind mv (fn [x] (do-result mv (f x)))))
 
-(defn map [f xs]
+(defn map
+  "'Executes' the sequence of monadic values resulting from mapping
+   f onto the values xs. f must return a monadic value."
+  [f xs]
   (seq (clojure.core/map f xs)))
 
-(defn chain [steps]
+(defn chain
+  "Chains together monadic computation steps that are each functions
+   of one parameter. Each step is called with the result of the previous
+   step as its argument. (m-chain (step1 step2)) is equivalent to
+   (fn [x] (domonad [r1 (step1 x) r2 (step2 r1)] r2))."
+  [steps]
   (fn [x]
     (let [mv ((first steps) x)
           chain (reduce (fn [chain step]
@@ -331,7 +360,9 @@
      f (bind (mv s)
              (fn [[v ss]]
                ((f v) ss)))
-     :else (m [v s])))
+     :else (if (= v (zero (m nil)))
+             v
+             (m [v s]))))
 
   Monad
   (do-result [_ v]

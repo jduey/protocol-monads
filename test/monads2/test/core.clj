@@ -215,24 +215,24 @@
     (is (= (mv1 :state-t) (mv2 :state-t)))))
 
 (deftest zero-law-state-t
-  (is (= [[[] :state]] ((m/zero (vect-state nil)) :state)))
-  (is (= (m/bind '() state-t-f)
-         '()))
-  (is (= (m/bind '(4) (constantly '()))
-         '()))
-  (is (= (m/plus [(list 5 6) '()])
-         (list 5 6)))
-  (is (= (m/plus ['() (list 5 6)])
-         (list 5 6))))
+  (is (= [] ((m/zero (vect-state nil)) :state)))
+  (is (= ((m/bind (m/zero (vect-state nil)) state-t-f) :state)
+         []))
+  (is (= ((m/bind (vect-state 4) (constantly (m/zero (vect-state nil)))) :state)
+         []))
+  (is (= ((m/plus [(vect-state 5) (m/zero (vect-state nil))]) :state)
+         ((vect-state 5) :state)))
+  (is (= ((m/plus [(m/zero (vect-state nil)) (vect-state 4)]) :state)
+         ((vect-state 4) :state))))
 
 (deftest do-state-t
-  (is (= [[[] :state]]
+  #_(is (= []
          ((m/do vect-state
                 [:when false]
                 :something)
           :state)))
 
-  (is (= [[[10 15] :state]]
+  #_(is (= [[[10 15] :state]]
          ((m/do vect-state
            [x (state-t-f 9)
             y (state-t-g x)]
