@@ -278,17 +278,27 @@
   (update-state identity))
 
 (defn get-val [key]
-  (monads2.core/do monads2.core/state
-                   [s (get-state)]
-                   (get s key)))
+  (bind (get-state)
+        #(state (get % key))))
 
 (defn update-val [key f & args]
-  (monads2.core/do monads2.core/state
-                   [s (update-state #(apply update-in % [key] f args))]
-                   (get s key)))
+  (bind (update-state #(apply update-in % [key] f args))
+        #(state (get % key))))
 
 (defn set-val [key val]
   (update-val key (constantly val)))
+
+(defn get-in-val [path val]
+  (bind (get-state)
+        #(state (get-in % path))))
+
+(defn assoc-in-val [path val]
+  (bind (update-state #(assoc-in % path val))
+        #(state (get-in % path))))
+
+(defn update-in-val [path f & args]
+  (bind (update-state #(apply update-in % path f args))
+        #(state (get % key))))
 
 
 (deftype cont-monad [v mv f]

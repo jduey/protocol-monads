@@ -158,9 +158,29 @@
   (is (= [:state :new-state]
          ((m/update-state (constantly :new-state)) :state))))
 
+(deftest test-get-val
+  (is (= [17 {:a 17}]
+         ((m/get-val :a) {:a 17}))))
+
+(deftest test-set-val
+  (is (= [17 {:a 12}]
+         ((m/set-val :a 12) {:a 17}))))
+
 (deftest test-update-val
   (is (= [5 {:a 19}]
          ((m/update-val :a + 14) {:a 5}))))
+
+(deftest test-get-in-val
+  (is (= [9 {:a {:b {:c 9}}}]
+         ((m/assoc-in-val [:a :b :c] 9) {:a {:b {:c 9}}}))))
+
+(deftest test-assoc-in-val
+  (is (= [nil {:a {:b {:c 9}}}]
+         ((m/assoc-in-val [:a :b :c] 9) {}))))
+
+(deftest test-update-in-val
+  (is (= [nil {:a {:b {:c 1}}}]
+         ((m/update-in-val [:a :b :c] (fnil inc 0)) {}))))
 
 
 (defn cont-f [n]
