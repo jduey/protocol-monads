@@ -353,6 +353,10 @@
 
 
 (deftype state-transformer [m v mv f alts]
+  clojure.lange.IDeref
+  (deref [_]
+    [m v])
+
   clojure.lang.IFn
   (invoke [_ s]
     (cond
