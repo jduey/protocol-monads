@@ -353,7 +353,7 @@
 
 
 (deftype state-transformer [m v mv f alts]
-  clojure.lange.IDeref
+  clojure.lang.IDeref
   (deref [_]
     [m v])
 
