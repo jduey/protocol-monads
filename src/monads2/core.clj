@@ -73,7 +73,7 @@
   (bind mv identity))
 
 (defn fmap
-  "Bind the monadic value m to the function returning (f x) for argument x"
+  "Bind the monadic value mv to the function f. Returning (f x) for argument x"
   [f mv]
   (bind mv (fn [x] (do-result mv (f x)))))
 
@@ -99,7 +99,7 @@
       (bind mv chain))))
 
 ;; for the writer monad
-(defprotocol writer-monad-protocol
+(defprotocol MonadWriter
   "Accumulation of values into containers"
   (writer-m-empty [_]
     "return an empty container")
@@ -121,11 +121,13 @@
   (plus-step [mv mvs]
     (apply concat mv mvs))
 
-  writer-monad-protocol
+  MonadWriter
   (writer-m-empty [_] (list))
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (concat c1 c2)))
 
+;; Monads describing multi-valued computations, i.e. computations
+;; that can yield multiple values. 
 (extend-type clojure.lang.PersistentList$EmptyList
   Monad
   (do-result [_ v]
@@ -139,7 +141,7 @@
   (plus-step [mv mvs]
     (apply concat mv mvs))
 
-  writer-monad-protocol
+  MonadWriter
   (writer-m-empty [_] (list))
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (concat c1 c2)))
@@ -157,7 +159,7 @@
   (plus-step [mv mvs]
     (vec (apply concat mv mvs)))
 
-  writer-monad-protocol
+  MonadWriter
   (writer-m-empty [_] [])
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (vec (concat c1 c2))))
@@ -185,11 +187,13 @@
   (plus-step [mv mvs]
     (lazy-concat mv mvs))
 
-  writer-monad-protocol
+  MonadWriter
   (writer-m-empty [_] (list))
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (concat c1 c2)))
 
+;; Monad describing multi-valued computations, like the sequence monads,
+;; but returning sets of results instead of sequences of results.
 (extend-type clojure.lang.PersistentHashSet
   Monad
   (do-result [_ v]
@@ -204,7 +208,7 @@
   (plus-step [mv mvs]
     (apply set/union mv mvs))
 
-  writer-monad-protocol
+  MonadWriter
   (writer-m-empty [_] #{})
   (writer-m-add [c v] (conj c v))
   (writer-m-combine [c1 c2] (clojure.set/union c1 c2)))
@@ -238,7 +242,11 @@
 
 (def maybe-zero-val (maybe-monad. ::nothing))
 
-(defn maybe [v]
+(defn maybe
+  "Monad describing computations with possible failures. Failure is
+   represented by nil, any other value is considered valid. As soon as
+   a step returns nil, the whole computation will yield nil as well."
+  [v]
   (maybe-monad. v))
 
 
@@ -256,10 +264,16 @@
   (bind [mv f]
     (state-monad. nil mv f)))
 
-(defn state [v]
+(defn state
+  "Monad describing stateful computations. The monadic values have the
+   structure (fn [old-state] [result new-state])."
+  [v]
   (state-monad. v nil nil))
 
-(defn update-state [f]
+(defn update-state
+  "Return a state-monad value that replaces the current state by the
+   result of f applied to the current state and that returns the old state."
+  [f]
   (reify
     clojure.lang.IFn
     (invoke [_ s]
@@ -271,21 +285,37 @@
     (bind [mv f]
       (state-monad. nil mv f))))
 
-(defn set-state [s]
+(defn set-state
+  "Return a state-monad value that replaces the current state by s and
+   returns the previous state."
+  [s]
   (update-state (constantly s)))
 
-(defn get-state []
+(defn get-state
+  "Return a state-monad value that returns the current state and does not
+   modify it."
+  []
   (update-state identity))
 
-(defn get-val [key]
+(defn get-val
+  "Return a state-monad value that assumes the state to be a map and
+   returns the value corresponding to the given key. The state is not modified."
+  [key]
   (bind (get-state)
         #(state (get % key))))
 
-(defn update-val [key f & args]
+(defn update-val
+  "Return a state-monad value that assumes the state to be a map and
+   replaces the value associated with the given key by the return value
+   of f applied to the old value and args. The old value is returned."
+  [key f & args]
   (bind (update-state #(apply update-in % [key] f args))
         #(state (get % key))))
 
-(defn set-val [key val]
+(defn set-val
+  "Return a state-monad value that assumes the state to be a map and
+   replaces the value associated with key by val. The old value is returned."
+  [key val]
   (update-val key (constantly val)))
 
 (defn get-in-val [path val]
@@ -318,16 +348,25 @@
   (bind [mv f]
     (cont-monad. nil mv f)))
 
-(defn cont [v]
+(defn cont
+  "Monad describing computations in continuation-passing style. The monadic
+   values are functions that are called with a single argument representing
+   the continuation of the computation, to which they pass their result."
+  [v]
   (cont-monad. v nil nil))
 
 ;; holding off on implementing this until later
-(defn call-cc [f]
+(defn call-cc
+  "A computation in the cont monad that calls function f with a single
+   argument representing the current continuation. The function f should
+   return a continuation (which becomes the return value of call-cc),
+   or call the passed-in current continuation to terminate."
+  [f]
   )
 
 
 (extend-type java.lang.String
-  writer-monad-protocol
+  MonadWriter
   (writer-m-empty [_] "")
   (writer-m-add [c v] (str c v))
   (writer-m-combine [c1 c2] (str c1 c2)))
@@ -345,7 +384,12 @@
           [v2 a2] (deref (f v1))]
       (writer-monad. v2 (writer-m-combine a1 a2)))))
 
-(defn writer [accumulator]
+(defn writer
+  "Monad describing computations that accumulate data on the side, e.g. for
+   logging. The monadic values have the structure [value log]. Any of the
+   accumulators from clojure.contrib.accumulators can be used for storing the
+   log data. Its empty value is passed as a parameter."
+  [accumulator]
   (fn [v]
     (writer-monad. v accumulator)))
 
@@ -390,7 +434,10 @@
   (plus-step [mv mvs]
     (state-transformer. m nil nil nil (cons mv mvs))))
 
-(defn state-t [m]
+(defn state-t
+  "Monad transformer that transforms a monad m into a monad of stateful
+  computations that have the base monad type as their result."
+  [m]
   (fn [v]
     (state-transformer. m v nil nil nil)))
 
@@ -422,7 +469,10 @@
                 (= x maybe-zero-val) (deref (plus mvs))
                 :else (m x)))))))
 
-(defn maybe-t [m]
+(defn maybe-t
+  "Monad transformer that transforms a monad m into a monad in which
+   the base values can be invalid (represented by :nothing)."
+  [m]
   (fn [v]
     (maybe-transformer. m (m (maybe v)))))
 
@@ -454,7 +504,10 @@
                (m '())
                (clojure.core/map deref (cons mv mvs))))))
 
-(defn list-t [m]
+(defn list-t
+  "monad transformer that transforms a monad m into a monad in which
+   the base values are lists."
+  [m]
   (fn [v]
     (list-transformer. m (m (list v)))))
 
@@ -485,7 +538,10 @@
                (m [])
                (clojure.core/map deref (cons mv mvs))))))
 
-(defn vector-t [m]
+(defn vector-t
+  "monad transformer that transforms a monad m into a monad in which
+   the base values are vectors."
+  [m]
   (fn [v]
     (vector-transformer. m (m (vector v)))))
 
@@ -516,7 +572,10 @@
                (m #{})
                (clojure.core/map deref (cons mv mvs))))))
 
-(defn set-t [m]
+(defn set-t
+  "monad transformer that transforms a monad m into a monad in which
+   the base values are sets."
+  [m]
   (fn [v]
     (set-transformer. m (m (hash-set v)))))
 
