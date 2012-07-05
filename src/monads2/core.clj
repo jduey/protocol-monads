@@ -318,9 +318,9 @@
   [key val]
   (update-val key (constantly val)))
 
-(defn get-in-val [path val]
+(defn get-in-val [path & [default]]
   (bind (get-state)
-        #(state (get-in % path))))
+        #(state (get-in % path default))))
 
 (defn assoc-in-val [path val]
   (bind (update-state #(assoc-in % path val))
