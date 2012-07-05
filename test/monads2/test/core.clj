@@ -170,7 +170,7 @@
   (is (= [5 {:a 19}]
          ((m/update-val :a + 14) {:a 5}))))
 
-(deftest test-get-in-state
+(deftest test-get-in-val
   (let [state {:a {:b 1} :c {:d {:e 2}}}]
     (are [expected args] (is (= expected ((apply m/get-in-val args) state)))
          [1 state]      [[:a :b]]
