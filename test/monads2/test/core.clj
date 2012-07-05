@@ -170,9 +170,14 @@
   (is (= [5 {:a 19}]
          ((m/update-val :a + 14) {:a 5}))))
 
-(deftest test-get-in-val
-  (is (= [9 {:a {:b {:c 9}}}]
-         ((m/assoc-in-val [:a :b :c] 9) {:a {:b {:c 9}}}))))
+(deftest test-get-in-state
+  (let [state {:a {:b 1} :c {:d {:e 2}}}]
+    (are [expected args] (is (= expected ((apply m/get-in-val args) state)))
+         [1 state]      [[:a :b]]
+         [:def state]   [[:z] :def]
+         [nil state]    [[:a :b :c]]
+         [2 state]      [[:c :d :e]]
+         [{:b 1} state] [[:a]])))
 
 (deftest test-assoc-in-val
   (is (= [nil {:a {:b {:c 9}}}]
