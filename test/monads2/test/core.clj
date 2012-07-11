@@ -184,9 +184,11 @@
          ((m/assoc-in-val [:a :b :c] 9) {}))))
 
 (deftest test-update-in-val
-  (is (= [nil {:a {:b {:c 1}}}]
-         ((m/update-in-val [:a :b :c] (fnil inc 0)) {}))))
-
+  (are [expected in-state path args] (is (= expected
+                                            ((apply m/update-in-val path args) in-state)))
+       [2 {:a {:b 4}}]      {:a {:b 2}}  [:a :b]  [* 2]
+       [2 {:a {:b 3}}]      {:a {:b 2}}  [:a :b]  [inc]
+       [nil {:a {:b [1]}}]  {:a nil}     [:a :b]  [(fnil conj []) 1]))
 
 (defn cont-f [n]
   (m/cont (inc n)))

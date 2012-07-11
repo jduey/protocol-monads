@@ -328,7 +328,7 @@
 
 (defn update-in-val [path f & args]
   (bind (update-state #(apply update-in % path f args))
-        #(state (get % key))))
+        #(state (get-in % path))))
 
 
 (deftype cont-monad [v mv f]
