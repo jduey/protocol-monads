@@ -51,9 +51,12 @@
     (bind mv (partial rest-steps []))))
 
 (defn seq
-  "'Executes' the monadic values in ms and returns a sequence of the
+  "'Executes' the monadic values in 'mvs' and returns a sequence of the
    basic values contained in them."
-  ([mvs] (seq (first mvs) mvs))
+  ([mvs]
+     (assert (clojure.core/seq mvs)
+             "At least one monadic value is required by monads2.core/seq")
+     (seq (first mvs) mvs))
   ([m-result mvs]
      (if (clojure.core/seq mvs)
        (comprehend identity mvs)
@@ -580,7 +583,7 @@
     (set-transformer. m (m (hash-set v)))))
 
 
-(deftype writer-transformer [m mv writer-result]
+(deftype writer-transformer [m mv writer-m]
   clojure.lang.IDeref
   (deref [_]
     mv)
@@ -588,7 +591,7 @@
   Monad
   (do-result [_ v]
     (writer-transformer.
-     m (m (writer-result v)) writer-result))
+     m (m (writer-m v)) writer-m))
   (bind [mv f]
     (let [mv (deref mv)]
       (writer-transformer.
@@ -598,18 +601,18 @@
                             (fn [v]
                               (let [[v2 a2] (deref v)]
                                 (m (writer-monad. v2 (writer-m-combine a1 a2)))))))))
-       writer-result)))
+       writer-m)))
 
   MonadZero
   (zero [mv]
     (let [v (deref mv)]
-      (writer-transformer. m (zero v) writer-result)))
+      (writer-transformer. m (zero v) writer-m)))
   (plus-step [mv mvs]
     (writer-transformer.
      m (plus (clojure.core/map deref (cons mv mvs)))
-     writer-result)))
+     writer-m)))
 
 (defn writer-t [m accumulator]
-  (let [writer-result (writer accumulator)]
+  (let [writer-m (writer accumulator)]
     (fn [v]
-      (writer-transformer. m (m (writer-result v)) writer-result))))
+      (writer-transformer. m (m (writer-m v)) writer-m))))
