@@ -1,6 +1,7 @@
 (ns monads2.test.core
   (:use [clojure.test])
-  (:require [monads2.core :as m]))
+  (:require [monads2.core :as m])
+  (:import [monads2.core writer-transformer state-transformer]))
 
 (defn list-f [n]
   (list (inc n)))
@@ -120,15 +121,12 @@
 
 (deftest test-listen
   (is (= [[nil #{:written}] #{:written}]
-         (->> (m/write test-writer :written)
-              m/listen
-              deref))))
+         @(m/listen (m/write test-writer :written)))))
 
 (deftest test-censor
   (is (= [nil #{:new-written}]
-         (->> (m/write test-writer :written)
-              (m/censor (constantly #{:new-written}))
-              deref))))
+         @(m/censor (constantly #{:new-written})
+                    (m/write test-writer :written)))))
 
 
 (defn state-f [n]
@@ -253,17 +251,36 @@
          ((vect-state 4) :state))))
 
 (deftest do-state-t
-  #_(is (= []
+  (is (= []
          ((m/do vect-state
                 [:when false]
                 :something)
           :state)))
 
-  #_(is (= [[[10 15] :state]]
+  (is (= [[[10 15] :state]]
          ((m/do vect-state
            [x (state-t-f 9)
             y (state-t-g x)]
-           [x y]) :state))))
+           [x y])
+          :state))))
+
+;; TODO: these two tests demonstrate a shorcoming of the maybe monad
+;; that needs to be fixed
+#_(deftest maybe-plus
+  (is (= :bogus
+         @(m/plus [(m/maybe 10)
+                   (m/do m/maybe
+                         [_ (m/maybe 1)]
+                         (throw (Exception. "Should not be thrown")))]))))
+
+#_(deftest test-state-maybe
+  (let [test-m (m/state-t m/maybe)]
+    (is (= [:bogus :state]
+           @((m/plus [(test-m :bogus)
+                      (m/do test-m
+                             [_ (test-m nil)]
+                             (throw (Exception. "Should not be thrown")))])
+             :state)))))
 
 
 (defn maybe-f [n]
@@ -539,3 +556,111 @@
                    y (tinc x)]
                   [a x y])))))
 
+(deftest test-hash-set-writer
+  (let [test-m (m/writer-t hash-set [])
+        writer-m (m/writer [])
+        write-msg (fn [msg]
+                    (writer-transformer. hash-set
+                                         (hash-set ((m/writer [msg]) nil))
+                                         writer-m))
+        listen-msgs (fn [mv]
+                      (writer-transformer. hash-set
+                                           (->> @mv
+                                                (map #(m/listen %))
+                                                set)
+                                           writer-m))
+        censor-msgs (fn [f mv]
+                      (writer-transformer. hash-set
+                                           (->> @mv
+                                                (map #(m/censor f %))
+                                                set)
+                                           writer-m))]
+
+    (is (= [nil [:msg1]] @(first @(write-msg :msg1))))
+
+    (is (= [[nil [:msg3]] [:msg3]] @(first @(listen-msgs (write-msg :msg3)))))
+
+    (is (= [[nil [nil [:msg3]] nil] [:msg1 :msg3 :msg2 :msg4]]
+           (->> (m/seq [(write-msg :msg1)
+                        (listen-msgs (write-msg :msg3))
+                        (write-msg :msg2)])
+                (censor-msgs #(conj % :msg4))
+                deref
+                first
+                deref)))
+
+    (is (= #{[5 [:msg3]] [nil [:msg1 :msg3]]}
+           (->> (m/plus [(write-msg :msg1)
+                         (m/zero (test-m nil))
+                         (m/zero (write-msg :msg2))
+                         (test-m 5)])
+                (censor-msgs #(conj % :msg3))
+                deref
+                (map deref)
+                set)))))
+
+(deftest test-state-writer-maybe
+  (let [test-m (m/state-t (m/writer-t m/maybe []))
+        writer-m (m/writer-t m/maybe [])
+        write-msg (fn [msg]
+                    (state-transformer. writer-m
+                                        nil
+                                        ((m/state-t (m/writer-t m/maybe [msg])) nil)
+                                        (constantly (test-m nil))
+                                        nil))
+        listen-msgs (fn [mv]
+                      (state-transformer. writer-m
+                                        nil
+                                        (fn [s]
+                                          (let [[[_ s] msgs] @@@(mv s)]
+                                            ((m/writer-t m/maybe msgs) [msgs s])))
+                                        (fn [v]
+                                          (test-m v))
+                                        nil))
+        censor-msgs (fn [f mv]
+                      (state-transformer. writer-m
+                                        nil
+                                        (fn [s]
+                                          (let [[[v s] msgs] @@@(mv s)]
+                                            ((m/writer-t m/maybe (f msgs)) [[v msgs] s])))
+                                        (fn [v]
+                                          (test-m v))
+                                        nil))]
+    (is (= [[nil :state] [:msg]]
+           @@@((write-msg :msg) :state)))
+
+    (is (= [[:result :state] [:msg]]
+           @@@((m/bind (write-msg :msg)
+                       (fn [x]
+                         (is (nil? x))
+                         (test-m :result)))
+               :state)))
+    (is (= [[[nil nil] :state] [:msg1 :msg2]]
+           @@@((m/seq [(write-msg :msg1)
+                       (write-msg :msg2)])
+               :state)))
+    (is (= [[nil :state] [:msg1]]
+           @@@((m/plus [(write-msg :msg1)
+                        (write-msg :msg2)])
+               :state)))
+    (is (= [[nil :state] [:msg2]]
+             @@@((m/plus [(m/zero (test-m nil))
+                          (write-msg :msg2)])
+                 :state)))
+
+    (is (= [[[:msg3] :state] [:msg3]]
+           @@@((listen-msgs (write-msg :msg3)) :state)))
+
+    (is (= [[[[nil [:msg3] nil] [:msg1 :msg3 :msg2]] :state] [:msg1 :msg3 :msg2 :msg4]]
+             @@@((->> (m/seq [(write-msg :msg1)
+                               (listen-msgs (write-msg :msg3))
+                               (write-msg :msg2)])
+                      (censor-msgs #(conj % :msg4)))
+                 :state)))
+
+    (is (= [[[nil [:msg1]] :state] [:msg1 :msg3]]
+           @@@((->> (m/plus [(m/zero (test-m nil))
+                             (m/zero (write-msg :msg2))
+                             (write-msg :msg1)])
+                    (censor-msgs #(conj % :msg3)))
+               :state)))))
