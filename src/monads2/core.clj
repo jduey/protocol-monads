@@ -433,7 +433,11 @@
 
   MonadZero
   (zero [_]
-    (state-transformer. m (zero (m nil)) nil nil nil))
+    (state-transformer. m nil
+                        (fn [s] (zero (m nil)))
+                        (fn [v]
+                          (state-transformer. m v nil nil nil))
+                        nil))
   (plus-step [mv mvs]
     (state-transformer. m nil nil nil (cons mv mvs))))
 
