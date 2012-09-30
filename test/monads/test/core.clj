@@ -1,7 +1,7 @@
-(ns monads2.test.core
+(ns monads.test.core
   (:use [clojure.test])
-  (:require [monads2.core :as m])
-  (:import [monads2.core writer-transformer state-transformer]))
+  (:require [monads.core :as m])
+  (:import [monads.core writer-transformer state-transformer]))
 
 (defn list-f [n]
   (list (inc n)))

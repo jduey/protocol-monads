@@ -1,4 +1,4 @@
-(ns monads2.core
+(ns monads.core
   (:refer-clojure :exclude [do seq map])
   (:require [clojure.set :as set]))
 
@@ -26,18 +26,18 @@
    bindings that can be used in the following steps."
   [result bindings expr]
   (let [steps (partition 2 bindings)]
-    `(monads2.core/bind (~result nil)
-                        (fn [_#]
-                          ~(reduce (fn [expr [sym mv]]
+    `(monads.core/bind (~result nil)
+                       (fn [_#]
+                         ~(reduce (fn [expr [sym mv]]
                                     (cond
                                      (= :when sym) `(if ~mv
                                                       ~expr
-                                                      (monads2.core/zero (~result nil)))
+                                                      (monads.core/zero (~result nil)))
                                      (= :let sym) `(let ~mv
                                                      ~expr)
-                                     :else `(monads2.core/bind ~mv (fn [~sym]
+                                     :else `(monads.core/bind ~mv (fn [~sym]
                                                                      ~expr))))
-                                  `(monads2.core/do-result (~result nil) ~expr)
+                                  `(monads.core/do-result (~result nil) ~expr)
                                   (reverse steps))))))
 
 (defn- comprehend [f mvs]
@@ -55,7 +55,7 @@
    basic values contained in them."
   ([mvs]
      (assert (clojure.core/seq mvs)
-             "At least one monadic value is required by monads2.core/seq")
+             "At least one monadic value is required by monads.core/seq")
      (seq (first mvs) mvs))
   ([m-result mvs]
      (if (clojure.core/seq mvs)
