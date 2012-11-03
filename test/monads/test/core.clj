@@ -276,7 +276,10 @@
 #_(deftest test-state-maybe
   (let [test-m (m/state-t m/maybe)]
     (is (= [:bogus :state]
-           @((m/plus [(test-m :bogus)
+           @((m/plus [(m/do test-m
+                             [:when false]
+                             (throw (Exception. "Really should not be thrown")))
+                      (test-m :bogus)
                       (m/do test-m
                              [_ (test-m nil)]
                              (throw (Exception. "Should not be thrown")))])
