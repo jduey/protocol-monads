@@ -1,3 +1,3 @@
-(defproject monads "1.0.0"
+(defproject net.clojure/monads "1.0.0"
   :description "A protocol based implementation of monads"
   :dependencies [[org.clojure/clojure "1.4.0"]])
