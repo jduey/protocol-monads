@@ -1,0 +1,7 @@
+.lein-*
+node_modules/
+resources/js/protocol_monads_dev.js
+resources/js/protocol_monads_browser_test.js
+resources/js/protocol_monads_browser_optimized_test.js
+resources/js/protocol_monads_node_test.js
+target/
