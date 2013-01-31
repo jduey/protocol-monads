@@ -1,0 +1,22 @@
+language:
+  - node_js
+  - clojure
+lein: lein2
+jdk:
+  - oraclejdk7
+node_js:
+  - "0.8"
+before_script:
+  - "export DISPLAY=:99:0"
+  - "echo 'Compile to javascript'"
+  - "lein2 cljsbuild once"
+  - "echo 'Starting buster server'"
+  - "./node_modules/buster/bin/buster-server &"
+  - "sleep 3"
+  - "echo 'Done.'"
+  - "echo 'Starting phantomjs server'"
+  - "phantomjs ./node_modules/buster/script/phantom.js &"
+  - "sleep 3"
+  - "echo 'Done.'"
+script:
+  - lein2 test && npm test

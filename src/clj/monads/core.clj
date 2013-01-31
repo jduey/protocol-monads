@@ -6,6 +6,7 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
+
 (ns monads.core
   (:refer-clojure :exclude [do seq map])
   (:require [clojure.set :as set]))
@@ -20,33 +21,6 @@
 
 (defn plus [[mv & mvs]]
   (plus-step mv mvs))
-
-(defmacro do
-  "Monad comprehension. Takes the name of a monad (like vector, hash-set),
-   a vector of steps given as binding-form/monadic-expression pairs, and
-   a result value specified by expr. The monadic-expression terms can use
-   the binding variables of the previous steps.
-   If the monad contains a definition of m-zero, the step list can also
-   contain conditions of the form :when p, where the predicate p can
-   contain the binding variables from all previous steps.
-   A clause of the form :let [binding-form expr ...], where the bindings
-   are given as a vector as for the use in let, establishes additional
-   bindings that can be used in the following steps."
-  [result bindings expr]
-  (let [steps (partition 2 bindings)]
-    `(monads.core/bind (~result nil)
-                       (fn [_#]
-                         ~(reduce (fn [expr [sym mv]]
-                                    (cond
-                                     (= :when sym) `(if ~mv
-                                                      ~expr
-                                                      (monads.core/zero (~result nil)))
-                                     (= :let sym) `(let ~mv
-                                                     ~expr)
-                                     :else `(monads.core/bind ~mv (fn [~sym]
-                                                                     ~expr))))
-                                  `(monads.core/do-result (~result nil) ~expr)
-                                  (reverse steps))))))
 
 (defn- comprehend [f mvs]
   (let [mv (first mvs)
@@ -138,7 +112,8 @@
   (writer-m-combine [c1 c2] (concat c1 c2)))
 
 ;; Monads describing multi-valued computations, i.e. computations
-;; that can yield multiple values. 
+;; that can yield multiple values.
+
 (extend-type clojure.lang.PersistentList$EmptyList
   Monad
   (do-result [_ v]
@@ -184,6 +159,27 @@
                                   (lazy-concat (rest l) ls))
        (clojure.core/seq ls) (lazy-concat (first l) (rest ls))
        :else (list)))))
+
+
+#_(:cljs
+   (extend-type Range
+     Monad
+     (do-result [_ v]
+       (list v))
+     (bind [mv f]
+       (mapcat f mv))
+
+     MonadZero
+     (zero [_]
+       [])
+     (plus-step [mv mvs]
+       (lazy-concat mv mvs))
+
+     MonadWriter
+     (writer-m-empty [_] (list))
+     (writer-m-add [c v] (conj c v))
+     (writer-m-combine [c1 c2] (concat c1 c2))))
+
 
 (extend-type clojure.lang.LazySeq
   Monad
@@ -281,20 +277,21 @@
   [v]
   (state-monad. v nil nil))
 
+(deftype StateMonadFn [f]
+  clojure.lang.IFn
+  (invoke [_ s]
+    [s (f s)])
+  Monad
+  (do-result [_ v]
+    (state-monad. v nil nil))
+  (bind [mv f1]
+    (state-monad. nil mv f1)))
+
 (defn update-state
   "Return a state-monad value that replaces the current state by the
    result of f applied to the current state and that returns the old state."
   [f]
-  (reify
-    clojure.lang.IFn
-    (invoke [_ s]
-      [s (f s)])
-
-    Monad
-    (do-result [_ v]
-      (state-monad. v nil nil))
-    (bind [mv f]
-      (state-monad. nil mv f))))
+  (StateMonadFn. f))
 
 (defn set-state
   "Return a state-monad value that replaces the current state by s and

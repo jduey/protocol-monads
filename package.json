@@ -1,0 +1,8 @@
+{
+    "name": "protocol-monads",
+    "description": "",
+    "version": "1.0.0",
+    "author": "",
+    "dependencies" : { "buster" : "0.6.12" },
+    "scripts": { "test": "buster-test -e node && buster-test -e browser" }
+}
