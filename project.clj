@@ -1,4 +1,4 @@
-(defproject net.clojure/monads "1.0.1-SNAPSHOT"
+(defproject net.clojure/monads "1.0.1"
   :description "A protocol based implementation of monads"
   :dependencies [[org.clojure/clojure "1.4.0"]]
   :source-paths ["src/clj"]
