@@ -1,7 +1,7 @@
 (defproject net.clojure/monads "1.0.1"
   :description "A protocol based implementation of monads"
   :dependencies [[org.clojure/clojure "1.4.0"]]
-  :source-paths ["src/clj"]
+  :source-paths ["src/clj", "src/cljs"]
   :test-paths ["test/clj"]
   :profiles {:dev {:dependencies [[com.birdseye-sw/buster-cljs "0.1.0"]]
                    :plugins [[lein-cljsbuild "0.2.9"]
