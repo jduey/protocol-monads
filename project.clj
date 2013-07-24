@@ -1,43 +1,37 @@
-(defproject net.clojure/monads "1.0.2"
+(defproject net.clojure/monads "1.0.3-SNAPSHOT"
   :description "A protocol based implementation of monads"
-  :dependencies [[org.clojure/clojure "1.4.0"]]
+  :dependencies [[org.clojure/clojure "1.5.1"]]
   :source-paths ["src/clj", "src/cljs"]
   :test-paths ["test/clj"]
-  :profiles {:dev {:dependencies [[com.birdseye-sw/buster-cljs "0.1.0"]]
-                   :plugins [[lein-cljsbuild "0.2.9"]
-                             [com.birdseye-sw/lein-dalap "0.1.0"]]}}
+  :profiles {:dev {:dependencies [[com.birdseye-sw/buster-cljs "0.1.2"]]
+                   :plugins [[lein-cljsbuild "0.3.2"]
+                             [com.birdseye-sw/lein-dalap "0.1.1"]]}}
   :hooks [leiningen.dalap]
 
   :cljsbuild
   {:builds
-   [{:id :dev
-     :source-path "src/cljs"
+   [{:id "browser-test",
+     :source-paths ["src/cljs" "test/cljs"],
      :compiler
-     {:output-to "resources/js/protocol_monads_dev.js"
-      :optimizations :simple
-      :pretty-print true}}
-    {:id :browser-test
-     :source-path "test/cljs"
+     {:pretty-print true,
+      :target :browser,
+      :output-to "resources/js/protocol_monads_browser_test.js",
+      :externs ["externs/buster.js"],
+      :optimizations :whitespace}}
+    {:id "browser-test-optimized",
+     :source-paths ["src/cljs" "test/cljs"],
      :compiler
-     {:output-to "resources/js/protocol_monads_browser_test.js"
-      :libraries ["resources/js/protocol_monads_dev.js"]
-      :externs ["externs/buster.js"]
-      :optimizations :simple
-      :pretty-print true}}
-    {:id :browser-test-optimized
-     :source-path "test/cljs"
-     :compiler
-     {:output-to "resources/js/protocol_monads_browser_optimized_test.js"
-      :libraries ["resources/js/protocol_monads_dev.js"]
-      :externs ["externs/buster.js"]
+     {:target :browser,
+      :output-to "resources/js/protocol_monads_browser_optimized_test.js",
+      :externs ["externs/buster.js"],
       :optimizations :advanced}}
-    {:id :node-test
-     :source-path "test/cljs"
+    {:id "node-test",
+     :source-paths ["src/cljs" "test/cljs"],
      :compiler
-     {:output-to "resources/js/protocol_monads_node_test.js"
-      :libraries ["resources/js/protocol_monads_dev.js"]
-      :externs ["externs/buster.js"]
-      :optimizations :simple
-      :pretty-print true}}]}
+     {:pretty-print true,
+      :target :node
+      :output-to "resources/js/protocol_monads_node_test.js",
+      :externs ["externs/buster.js"],
+      :optimizations :simple}}]}
 
   )
