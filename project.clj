@@ -1,6 +1,6 @@
-(defproject net.clojure/monads "1.0.2"
+(defproject net.clojure/monads "1.0.3-SNAPSHOT"
   :description "A protocol based implementation of monads"
-  :dependencies [[org.clojure/clojure "1.4.0"]]
+  :dependencies [[org.clojure/clojure "1.5.1"]]
   :source-paths ["src/clj", "src/cljs"]
   :test-paths ["test/clj"]
   :profiles {:dev {:dependencies [[com.birdseye-sw/buster-cljs "0.1.2"]]
@@ -10,28 +10,28 @@
 
   :cljsbuild
   {:builds
-   [{:id :browser-test
-     :source-paths ["src/cljs" "test/cljs"]
+   [{:source-paths ["src/cljs" "test/cljs"],
      :compiler
-     {:output-to "resources/js/protocol_monads_browser_test.js"
-      :target :browser
-      :externs ["externs/buster.js"]
-      :optimizations :simple
-      :pretty-print true}}
-    {:id :browser-test-optimized
-     :source-path ["src/cljs" "test/cljs"]
+     {:pretty-print true,
+      :target :browser,
+      :output-to "resources/js/protocol_monads_browser_test.js",
+      :externs ["externs/buster.js"],
+      :optimizations :whitespace},
+     :id "browser-test"}
+    {:source-paths ["src/cljs" "test/cljs"],
      :compiler
-     {:output-to "resources/js/protocol_monads_browser_optimized_test.js"
-      :target :browser
-      :externs ["externs/buster.js"]
-      :optimizations :advanced}}
-    {:id :node-test
-     :source-paths ["src/cljs" "test/cljs"]
+     {:target :browser,
+      :output-to "resources/js/protocol_monads_browser_optimized_test.js",
+      :externs ["externs/buster.js"],
+      :optimizations :advanced},
+     :id "browser-test-optimized"}
+    {:source-paths ["src/cljs" "test/cljs"],
      :compiler
-     {:output-to "resources/js/protocol_monads_node_test.js"
-      :target :node
-      :externs ["externs/buster.js"]
-      :optimizations :simple
-      :pretty-print true}}]}
+     {:pretty-print true,
+      :target :node,
+      :output-to "resources/js/protocol_monads_node_test.js",
+      :externs ["externs/buster.js"],
+      :optimizations :whitespace},
+     :id "node-test"}]}
 
   )

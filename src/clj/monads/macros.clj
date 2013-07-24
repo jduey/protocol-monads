@@ -7,6 +7,22 @@
 ;   You must not remove this notice, or any other, from this software.
 (ns monads.macros)
 
+(defn- ensure-items [n steps]
+  "Ensures there are at least n elements on a list, will fill up with nil
+  values when list is not big enough."
+  (take n (concat steps (repeat nil))))
+
+(defn- each3-steps [steps]
+  "Transforms a list in a list of triples following the form:
+   [a b c] => [[a b c] [b c nil] [c nil nil]]."
+  (let [n (count steps)]
+    (map vector (ensure-items n steps)
+         (ensure-items n (rest steps))
+         (ensure-items n (rest (rest steps))))))
+
+(def ^:private prepare-monadic-steps
+  #(->> % (partition 2) reverse each3-steps))
+
 (defmacro do
   "Monad comprehension. Takes the name of a monad (like vector, hash-set),
    a vector of steps given as binding-form/monadic-expression pairs, and
@@ -19,10 +35,10 @@
    are given as a vector as for the use in let, establishes additional
    bindings that can be used in the following steps."
   [result bindings expr]
-  (let [steps (partition 2 bindings)]
+  (let [steps (prepare-monadic-steps bindings)]
     `(monads.core/bind (~result nil)
                        (fn [_#]
-                         ~(reduce (fn [expr [sym mv]]
+                         ~(reduce (fn [expr [[sym mv] _ _]]
                                     (cond
                                      (= :when sym) `(if ~mv
                                                       ~expr
@@ -32,4 +48,4 @@
                                      :else `(monads.core/bind ~mv (fn [~sym]
                                                                     ~expr))))
                                   `(monads.core/do-result (~result nil) ~expr)
-                                  (reverse steps))))))
+                                  steps)))))
