@@ -23,6 +23,62 @@
 (def ^:private prepare-monadic-steps
   #(->> % (partition 2) reverse each3-steps))
 
+(defn- if-then-else-statement
+  "Process an :if :then :else steps when adding a new
+  monadic step to the mexrp."
+  [[[_          else-mexpr]
+    [then-bform then-mexpr]
+    [if-bform   if-conditional]] mexpr continuation]
+    (cond
+      (and (identical? then-bform :then)
+           (identical? if-bform   :if))
+        `(if ~if-conditional
+          ~(reduce continuation
+                   mexpr
+                   (prepare-monadic-steps then-mexpr))
+          ~(reduce continuation
+                   mexpr
+                   (prepare-monadic-steps else-mexpr)))
+      :else
+       (throw (Exception. "invalid :if without :then and :else"))))
+
+(defn- merge-cond-branches [cond-branches]
+  (let [merger (fn [result cond-branch]
+                  (-> result
+                      (conj (first cond-branch))
+                      (conj (second cond-branch))))]
+    (reduce merger [] cond-branches)))
+
+(defn cond-statement
+  "Process a :cond steps when adding a new monadic step to the mexrp."
+  [expr mexpr continuation]
+  (let [cond-sexps (partition 2 expr)
+        result (for [[cond-sexp monadic-sexp] cond-sexps]
+                     (list cond-sexp
+                           (reduce continuation
+                                   mexpr
+                                   (prepare-monadic-steps monadic-sexp))))]
+      `(cond ~@(merge-cond-branches result))))
+
+(defn- add-monad-step
+  "Add a monad comprehension step before the already transformed
+   monad comprehension expression mexpr."
+  [result mexpr steps]
+  (let [[[bform expr :as step] & _] steps]
+    (cond
+      (identical? bform :when)  `(if ~expr ~mexpr (monads.core/zero (~result nil)))
+      (identical? bform :let)   `(let ~expr ~mexpr)
+      ;; (identical? bform :cond)  (cond-statement expr mexpr add-monad-step)
+      ;; (identical? bform :then)  mexpr
+      ;; ; ^ ignore :then step (processed on the :else step)
+      ;; (identical? bform :if)    mexpr
+      ;; ; ^ ignore :if step (processed on the :else step)
+      ;; (identical? bform :else)
+      ;;   (if-then-else-statement steps mexpr add-monad-step)
+      :else
+        (list 'monads.core/bind expr (list 'fn [bform] mexpr)))))
+
+
 (defmacro do
   "Monad comprehension. Takes the name of a monad (like vector, hash-set),
    a vector of steps given as binding-form/monadic-expression pairs, and
@@ -38,14 +94,15 @@
   (let [steps (prepare-monadic-steps bindings)]
     `(monads.core/bind (~result nil)
                        (fn [_#]
-                         ~(reduce (fn [expr [[sym mv] _ _]]
-                                    (cond
-                                     (= :when sym) `(if ~mv
-                                                      ~expr
-                                                      (monads.core/zero (~result nil)))
-                                     (= :let sym) `(let ~mv
-                                                     ~expr)
-                                     :else `(monads.core/bind ~mv (fn [~sym]
-                                                                    ~expr))))
+                         ~(reduce (partial add-monad-step result)
+                                  ;; (fn [expr [[sym mv] _ _]]
+                                  ;;   (cond
+                                  ;;    (= :when sym) `(if ~mv
+                                  ;;                     ~expr
+                                  ;;                     (monads.core/zero (~result nil)))
+                                  ;;    (= :let sym) `(let ~mv
+                                  ;;                    ~expr)
+                                  ;;    :else `(monads.core/bind ~mv (fn [~sym]
+                                  ;;                                   ~expr))))
                                   `(monads.core/do-result (~result nil) ~expr)
                                   steps)))))
