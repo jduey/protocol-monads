@@ -10,28 +10,28 @@
 
   :cljsbuild
   {:builds
-   [{:source-paths ["src/cljs" "test/cljs"],
+   [{:id "browser-test",
+     :source-paths ["src/cljs" "test/cljs"],
      :compiler
      {:pretty-print true,
       :target :browser,
       :output-to "resources/js/protocol_monads_browser_test.js",
       :externs ["externs/buster.js"],
-      :optimizations :whitespace},
-     :id "browser-test"}
-    {:source-paths ["src/cljs" "test/cljs"],
+      :optimizations :whitespace}}
+    {:id "browser-test-optimized",
+     :source-paths ["src/cljs" "test/cljs"],
      :compiler
      {:target :browser,
       :output-to "resources/js/protocol_monads_browser_optimized_test.js",
       :externs ["externs/buster.js"],
-      :optimizations :advanced},
-     :id "browser-test-optimized"}
-    {:source-paths ["src/cljs" "test/cljs"],
+      :optimizations :advanced}}
+    {:id "node-test",
+     :source-paths ["src/cljs" "test/cljs"],
      :compiler
      {:pretty-print true,
-      :target :node,
+      :target :node
       :output-to "resources/js/protocol_monads_node_test.js",
       :externs ["externs/buster.js"],
-      :optimizations :whitespace},
-     :id "node-test"}]}
+      :optimizations :simple}}]}
 
   )

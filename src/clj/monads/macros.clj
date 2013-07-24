@@ -68,13 +68,13 @@
     (cond
       (identical? bform :when)  `(if ~expr ~mexpr (monads.core/zero (~result nil)))
       (identical? bform :let)   `(let ~expr ~mexpr)
-      ;; (identical? bform :cond)  (cond-statement expr mexpr add-monad-step)
-      ;; (identical? bform :then)  mexpr
-      ;; ; ^ ignore :then step (processed on the :else step)
-      ;; (identical? bform :if)    mexpr
-      ;; ; ^ ignore :if step (processed on the :else step)
-      ;; (identical? bform :else)
-      ;;   (if-then-else-statement steps mexpr add-monad-step)
+      (identical? bform :cond)  (cond-statement expr mexpr (partial add-monad-step result))
+      (identical? bform :then)  mexpr
+      ; ^ ignore :then step (processed on the :else step)
+      (identical? bform :if)    mexpr
+      ; ^ ignore :if step (processed on the :else step)
+      (identical? bform :else)
+      (if-then-else-statement steps mexpr (partial add-monad-step result))
       :else
         (list 'monads.core/bind expr (list 'fn [bform] mexpr)))))
 

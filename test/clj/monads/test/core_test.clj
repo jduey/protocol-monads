@@ -778,3 +778,68 @@
                                  (write-msg :msg1)])
                         (censor-msgs #(conj % :msg3)))
                    :state))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest domonad-if-then
+  (it ""
+    (let [monad-value (monadic/do m/maybe
+                      [ a (m/maybe 5)
+                        :let [c 7 ]
+                        :if (and (= a 5) (= c 7))
+                        :then [
+                          b (m/maybe 6)]
+                        :else [
+                          b m/maybe-zero-val]]
+                      [a b])]
+    (is (= @monad-value [5 6])))))
+
+(deftest domonad-nested-if-then
+  (it ""
+   (let [monad-value (monadic/do m/maybe
+                      [ a (m/maybe 5)
+                       :if (= a 5)
+                        :then [
+                          b (m/maybe 6)
+                          :if (= b 6)
+                          :then [
+                            c (m/maybe 7)]
+                          :else [
+                            c m/maybe-zero-val]]
+                        :else [
+                          b m/maybe-zero-val
+                          c m/maybe-zero-val]]
+                      [a b c])]
+  (is (= @monad-value [5 6 7])))))
+
+(deftest domonad-if-then-with-when
+  (it ""
+    (let [monad-value (monadic/do m/maybe
+                      [ a (m/maybe 5)
+                        :when (= a 5)
+                        :if (= a 1)
+                        :then [
+                          b (m/maybe 6)]
+                        :else [
+                          b m/maybe-zero-val]]
+                      [a b])]
+  (is (= monad-value m/maybe-zero-val)))))
+
+(deftest domonad-cond
+  (it ""
+    (let [monad-value (monadic/do m/maybe
+                       [ a (m/maybe 5)
+                         :when (= a 5)
+                         :cond
+                           [(< a 1)
+                              [result (m/maybe "less than one")]
+                            (< a 3)
+                              [result (m/maybe "less than three")]
+                            (< a 6)
+                              [result (m/maybe "less than six")]
+                            :else
+                              [result (m/maybe  "arbitrary number")]]
+                         b (m/maybe 7)
+                         :let [some-val 12345]]
+                       [result b some-val])]
+   (is (= @monad-value ["less than six" 7 12345])))))
