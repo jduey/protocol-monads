@@ -12,6 +12,7 @@
   (:require [clojure.set :as set]))
 
 (defprotocol Monad
+  (has-zero? [_])
   (do-result [_ v])
   (bind [mv f]))
 
@@ -351,6 +352,8 @@
       (c v)))
 
   Monad
+  (has-zero? [_]
+    false)
   (do-result [_ v]
     (cont-monad. v nil nil))
   (bind [mv f]
@@ -418,11 +421,13 @@
   clojure.lang.IFn
   (invoke [_ s]
     (cond
-     alts (plus (clojure.core/map #(% s) alts))
+     alts (if (has-zero? (m nil))
+            (plus (clojure.core/map #(% s) alts)))
      f (bind (mv s)
              (fn [[v ss]]
                ((f v) ss)))
-     :else (if (= v (zero (m nil)))
+     :else (if (and (has-zero? (m nil))
+                    (= v (zero (m nil))))
              v
              (m [v s]))))
 
