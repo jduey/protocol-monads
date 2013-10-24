@@ -121,6 +121,31 @@
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn reader-f [n]
+  (m/reader (inc n)))
+
+(defn reader-g [n]
+  (m/reader (+ n 5)))
+
+(deftest first-law-reader
+  (it ""
+      (is (= ((m/bind (m/reader 10) reader-f) :env)
+             ((reader-f 10) :env)))))
+
+(deftest second-law-reader
+  (it ""
+      (is (= ((m/bind (m/reader 10) m/reader) :env)
+             ((m/reader 10) :env)))))
+
+(deftest third-law-reader
+  (it ""
+      (is (= ((m/bind (m/bind (m/reader 3) reader-f) reader-g) :env)
+             ((m/bind (m/reader 3)
+                            (fn [x]
+                              (m/bind (reader-f x) reader-g))) :env)))))
+
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (def test-writer (m/writer #{}))
 
 (defn writer-f [n]

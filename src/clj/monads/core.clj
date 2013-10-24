@@ -93,6 +93,12 @@
   (writer-m-combine [container1 container2]
     "combine two containers, return new container"))
 
+(extend-type clojure.lang.PersistentArrayMap
+  MonadWriter
+  (writer-m-empty [_] (hash-map))
+  (writer-m-add [c v] (conj c v))
+  (writer-m-combine [c1 c2] (merge c1 c2)))
+
 (extend-type clojure.lang.PersistentList
   Monad
   (do-result [_ v]
@@ -379,6 +385,35 @@
   (writer-m-add [c v] (str c v))
   (writer-m-combine [c1 c2] (str c1 c2)))
 
+(deftype reader-monad [v mv f]
+  clojure.lang.IFn
+  (invoke [_ e]
+    (if f
+      (let [v (mv e)]
+        ((f v) e))
+      v))
+
+  Monad
+  (do-result [_ v]
+    (reader-monad. v nil nil))
+  (bind [mv f]
+    (reader-monad. nil mv f)))
+
+(def get-env
+  (reify
+    clojure.lang.IFn
+    (invoke [_ e]
+      e)
+
+    Monad
+    (do-result [_ v]
+      (reader-monad. v nil nil))
+    (bind [mv f]
+      (reader-monad. nil mv f))))
+
+(defn reader [v]
+  (reader-monad. v nil nil))
+
 (deftype writer-monad [v accumulator]
   clojure.lang.IDeref
   (deref [_]
@@ -418,15 +453,16 @@
   clojure.lang.IFn
   (invoke [_ s]
     (cond
-     alts (if (satisfies? MonadZero m)
+     alts (if (satisfies? MonadZero (first alts))
             (plus (clojure.core/map #(% s) alts)))
      f (bind (mv s)
              (fn [[v ss]]
                ((f v) ss)))
-     :else (if (and (satisfies? MonadZero m)
-                    (= v (zero (m nil))))
-             v
-             (m [v s]))))
+     :else (let [mv-nil (m nil)]
+             (if (and (satisfies? MonadZero mv-nil)
+                      (= v (zero mv-nil)))
+               v
+               (m [v s])))))
 
   Monad
   (do-result [_ v]
@@ -623,3 +659,39 @@
   (let [writer-m (writer accumulator)]
     (fn [v]
       (writer-transformer. m (m (writer-m v)) writer-m))))
+
+
+(deftype reader-transformer [m v mv f alts]
+  clojure.lang.IFn
+  (invoke [_ s]
+    (cond
+     alts (if (satisfies? MonadZero (first alts))
+            (plus (clojure.core/map #(% s) alts)))
+     f (bind (mv s)
+             (fn [v]
+               ((f v) s)))
+     :else (let [mv-nil (m nil)]
+             (if (and (satisfies? MonadZero mv-nil)
+                      (= v (zero mv-nil)))
+               v
+               (m v)))))
+
+  Monad
+  (do-result [_ v]
+    (reader-transformer. m v nil nil nil))
+  (bind [mv f]
+    (reader-transformer. m nil mv f nil))
+
+  MonadZero
+  (zero [_]
+    (reader-transformer. m nil
+                         (fn [s] (zero (m nil)))
+                         (fn [v]
+                           (reader-transformer. m v nil nil nil))
+                         nil))
+  (plus-step [mv mvs]
+    (reader-transformer. m nil nil nil (cons mv mvs))))
+
+(defn reader-t [m]
+  (fn [v]
+    (reader-transformer. m v nil nil nil)))
