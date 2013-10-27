@@ -369,14 +369,16 @@
   [v]
   (cont-monad. v nil nil))
 
-;; holding off on implementing this until later
 (defn call-cc
   "A computation in the cont monad that calls function f with a single
    argument representing the current continuation. The function f should
    return a continuation (which becomes the return value of call-cc),
    or call the passed-in current continuation to terminate."
   [f]
-  )
+  (cont-monad. nil
+               (cont-monad. nil nil nil)
+               (fn [_]
+                 f)))
 
 
 (extend-type java.lang.String
