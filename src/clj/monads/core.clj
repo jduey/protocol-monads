@@ -163,7 +163,7 @@
       (cond
        (clojure.core/seq l) (cons (first l)
                                   (lazy-concat (rest l) ls))
-       (clojure.core/seq ls) (lazy-concat (first l) (rest ls))
+       (clojure.core/seq ls) (lazy-concat (first ls) (rest ls))
        :else (list)))))
 
 
